@@ -1,7 +1,8 @@
 streamlit
 g4f
-pillow
+Pillow
 gTTS
 audio-recorder-streamlit
 python-dotenv
 google-genai
+pypdf
