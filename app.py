@@ -6,12 +6,13 @@ from g4f.client import Client
 from PIL import Image
 from pypdf import PdfReader
 from gtts import gTTS
+from duckduckgo_search import DDGS
 
 # AI Clientini yaratish
 client = Client()
 
 # Sahifa sozlamalari
-st.set_page_config(page_title="EduMindAI Pro — Pro Assistent", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="EduMindAI Enterprise", page_icon="🧠", layout="wide")
 
 # ---------------- MA'LUMOTLAR BAZASI (SQLITE) ----------------
 conn = sqlite3.connect("edumind.db", check_same_thread=False)
@@ -35,6 +36,15 @@ conn.commit()
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
+# ---------------- WEB SEARCH FUNKSIYASI ----------------
+def search_web(query):
+    try:
+        results = DDGS().text(query, max_results=3)
+        search_text = "\n".join([f"- {r['title']}: {r['body']}" for r in results])
+        return search_text
+    except Exception as e:
+        return ""
+
 # ---------------- OVOZ YARATISH FUNKSIYASI (TTS) ----------------
 def text_to_speech(text, lang='uz'):
     try:
@@ -53,7 +63,7 @@ if "username" not in st.session_state:
     st.session_state.username = ""
 
 if not st.session_state.logged_in:
-    st.title("🧠 EduMindAI Pro — Tizimga kirish")
+    st.title("🧠 EduMindAI Enterprise — Tizimga kirish")
     
     auth_tab1, auth_tab2 = st.tabs(["🔑 Kirish", "📝 Ro'yxatdan o'tish"])
     
@@ -80,13 +90,13 @@ if not st.session_state.logged_in:
                 c.execute("INSERT INTO users(username, password) VALUES (?, ?)", (new_user, make_hashes(new_password)))
                 conn.commit()
                 st.success("Muvaffaqiyatli ro'yxatdan o'tdingiz! Endi kirish bo'limidan kiring.")
-            except:
+            except Exception as e:
                 st.error("Ushbu foydalanuvchi nomi band!")
     st.stop()
 
-# ---------------- TIZIMGA KIRILGANIDAN SO'NG ----------------
-st.title(f"🧠 EduMindAI Pro — Assistent ({st.session_state.username})")
-st.caption("Multimodal AI, Ovozli javob va SQLite xotira tizimi")
+# ---------------- MAIN APP ----------------
+st.title(f"🧠 EduMindAI Enterprise ({st.session_state.username})")
+st.caption("Multimodal AI, Web Search, Audio & Database")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -97,7 +107,7 @@ if "messages" not in st.session_state:
             st.session_state.messages.append({"role": r, "content": c_text, "image": None})
     else:
         st.session_state.messages = [
-            {"role": "assistant", "content": f"Salom {st.session_state.username}! Men EduMindAI Pro assistentiman. Sizga qanday yordam bera olaman?", "image": None}
+            {"role": "assistant", "content": f"Salom {st.session_state.username}! Men EduMindAI Enterprise assistentiman.", "image": None}
         ]
 
 if "current_image" not in st.session_state:
@@ -108,16 +118,19 @@ if "extracted_pdf_text" not in st.session_state:
 # ---------------- CHAP PANEL ----------------
 with st.sidebar:
     st.write(f"👤 **Foydalanuvchi:** {st.session_state.username}")
-    if st.button("🚪 Tizimdan chiqish", use_container_width=True):
+    if st.button("🚪 Chiqish", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.username = ""
         st.session_state.messages = []
         st.rerun()
         
     st.markdown("---")
-    st.header("🗂️ Multimodal Kirish")
+    st.header("⚙️ Funksiyalar va Qidiruv")
     
-    tab1, tab2, tab3 = st.tabs(["📄 Fayl/PDF", "🖼️ Rasm", "🔊 Ovoz Sozlamalari"])
+    use_web_search = st.checkbox("🌐 Internetdan real-vaqtda qidirish", value=False)
+    enable_tts = st.checkbox("🔊 AI javobini ovozli o'qish (TTS)", value=True)
+
+    tab1, tab2 = st.tabs(["📄 Fayl/PDF", "🖼️ Rasm"])
 
     with tab1:
         files = st.file_uploader("PDF/TXT yuklang", type=["pdf", "txt"], accept_multiple_files=True)
@@ -139,21 +152,16 @@ with st.sidebar:
             st.image(st.session_state.current_image, use_container_width=True)
             st.success("🖼️ Rasm yuklandi!")
 
-    with tab3:
-        enable_tts = st.checkbox("🔊 AI javobini ovozli o'qish (TTS)", value=True)
-
     st.markdown("---")
-    st.header("⚙️ AI Sozlamalari")
-
     ai_mode = st.selectbox(
         "AI Rejimini tanlang:",
         ["🎓 O'qituvchi Rejimi (Batafsil)", "⚡ Qisqa va Tezkor", "💻 Dasturchi Rejimi"]
     )
 
     system_prompts = {
-        "🎓 O'qituvchi Rejimi (Batafsil)": "Siz tajribali o'qituvchisiz. Savollarga o'zbek tilida, tushunarli, misollar bilan va batafsil javob bering.",
-        "⚡ Qisqa va Tezkor": "Siz qisqa va aniq javob beruvchi assistentsiz. Ortiqcha gaplarsiz, faqat eng muhim javobni bering.",
-        "💻 Dasturchi Rejimi": "Siz tajribali dasturchisiz. Kodingizni tushuntirishlar bilan, toza va xatosiz ko'rinishda taqdim eting."
+        "🎓 O'qituvchi Rejimi (Batafsil)": "Siz tajribali o'qituvchisiz. Savollarga o'zbek tilida, tushunarli va batafsil javob bering.",
+        "⚡ Qisqa va Tezkor": "Siz qisqa va aniq javob beruvchi assistentsiz.",
+        "💻 Dasturchi Rejimi": "Siz tajribali dasturchisiz. Kodingizni toza va xatosiz ko'rinishda taqdim eting."
     }
 
     if st.button("🗑️ Chatni tozalash", use_container_width=True):
@@ -165,11 +173,16 @@ with st.sidebar:
         st.rerun()
 
 # ---------------- AI JAVOB FUNKSIYASI ----------------
-def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text=""):
+def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text="", web_results=""):
     try:
         full_prompt = f"[{mode_instruction}]\n"
+        
+        if web_results:
+            full_prompt += f"\nInternetdan topilgan so'nggi ma'lumotlar:\n{web_results}\n"
+            
         if context_text:
             full_prompt += f"\nYuklangan fayllar mazmuni:\n{context_text[:3000]}\n"
+            
         full_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
 
         if img_obj is not None:
@@ -194,7 +207,7 @@ for message in st.session_state.messages:
             st.image(message["image"], width=300)
         st.markdown(message["content"])
 
-if prompt := st.chat_input("EduMindAI Pro'ga savol bering..."):
+if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
     img_to_send = st.session_state.current_image
     pdf_context = st.session_state.extracted_pdf_text
 
@@ -212,8 +225,13 @@ if prompt := st.chat_input("EduMindAI Pro'ga savol bering..."):
         message_placeholder = st.empty()
         mode_text = system_prompts.get(ai_mode, "")
         
-        with st.spinner("AI o'ylamoqda va javob tayyorlamoqda..."):
-            ai_reply = get_ai_response(prompt, img_to_send, mode_text, pdf_context)
+        web_res = ""
+        if use_web_search:
+            with st.spinner("🌐 Internetdan so'nggi ma'lumotlar qidirilmoqda..."):
+                web_res = search_web(prompt)
+
+        with st.spinner("AI javob tayyorlamoqda..."):
+            ai_reply = get_ai_response(prompt, img_to_send, mode_text, pdf_context, web_res)
 
         typed_text = ""
         for char in ai_reply:
