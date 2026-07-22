@@ -141,4 +141,61 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
         else:
             response = client.chat.completions.create(
                 model="gpt-4o",
-                messages=
+                messages=[{"role": "user", "content": full_prompt}],
+            )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"Xatolik yuz berdi: {str(e)}"
+
+# ---------------- CHAT INTERFEYSI ----------------
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        if message.get("image") is not None:
+            st.image(message["image"], width=300)
+        st.markdown(message["content"])
+
+if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
+    img_to_send = st.session_state.current_image
+    pdf_context = st.session_state.extracted_pdf_text
+
+    st.session_state.messages.append({"role": "user", "content": prompt, "image": img_to_send})
+    c.execute("INSERT INTO chat_history (username, role, content) VALUES (?, ?, ?)", 
+              (DEFAULT_USER, "user", prompt))
+    conn.commit()
+
+    with st.chat_message("user"):
+        if img_to_send is not None:
+            st.image(img_to_send, width=300)
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        mode_text = system_prompts.get(ai_mode, "")
+        
+        web_res = ""
+        if use_web_search:
+            with st.spinner("🌐 Internetdan so'nggi ma'lumotlar qidirilmoqda..."):
+                web_res = search_web(prompt)
+
+        with st.spinner("AI javob tayyorlamoqda..."):
+            ai_reply = get_ai_response(prompt, img_to_send, mode_text, pdf_context, web_res)
+
+        typed_text = ""
+        for char in ai_reply:
+            typed_text += char
+            message_placeholder.markdown(typed_text + "▌")
+            time.sleep(0.002)
+            
+        message_placeholder.markdown(ai_reply)
+
+        if enable_tts:
+            audio_file = text_to_speech(ai_reply)
+            if audio_file:
+                st.audio(audio_file)
+
+    st.session_state.messages.append({"role": "assistant", "content": ai_reply, "image": None})
+    c.execute("INSERT INTO chat_history (username, role, content) VALUES (?, ?, ?)", 
+              (DEFAULT_USER, "assistant", ai_reply))
+    conn.commit()
+
+    st.session_state.current_image = None
