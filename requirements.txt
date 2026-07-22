@@ -1,0 +1,7 @@
+streamlit
+g4f
+pillow
+gTTS
+audio-recorder-streamlit
+python-dotenv
+google-genai
