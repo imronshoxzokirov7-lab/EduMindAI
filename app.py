@@ -84,4 +84,91 @@ with st.sidebar:
         st.session_state.messages = [
             {"role": "assistant", "content": "Chat tozalandi! Yangi savolingizni berishingiz mumkin.", "image": None}
         ]
-        st.session
+        st.session_state.current_image = None
+        st.session_state.extracted_pdf_text = ""
+        st.rerun()
+
+    chat_text = "\n\n".join([f"{m['role'].upper()}: {m['content']}" for m in st.session_state.messages])
+    st.download_button(
+        label="📥 Chatni yuklab olish (.txt)",
+        data=chat_text,
+        file_name="EduMindAI_Suhbat.txt",
+        mime="text/plain",
+        use_container_width=True
+    )
+
+# ---------------- REAL AI JAVOB BERISH FUNKSIYASI ----------------
+def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text=""):
+    try:
+        full_prompt = f"[{mode_instruction}]\n"
+        
+        if context_text:
+            full_prompt += f"\nYuklangan fayllar mazmuni:\n{context_text[:3000]}\n"
+            
+        full_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
+
+        if img_obj is not None:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{
+                    "role": "user",
+                    "content": full_prompt
+                }],
+                image=img_obj
+            )
+        else:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": full_prompt}],
+            )
+
+        return response.choices[0].message.content
+
+    except Exception as e:
+        return f"Rasm yoki matnni tahlil qilishda xatolik yuz berdi: {str(e)}"
+
+# ---------------- CHAT INTERFEYSI ----------------
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        if message.get("image") is not None:
+            st.image(message["image"], width=300)
+        st.markdown(message["content"])
+
+if prompt := st.chat_input("EduMindAI'ga savol bering..."):
+    img_to_send = st.session_state.current_image
+    pdf_context = st.session_state.extracted_pdf_text
+
+    st.session_state.messages.append({
+        "role": "user", 
+        "content": prompt, 
+        "image": img_to_send
+    })
+    
+    with st.chat_message("user"):
+        if img_to_send is not None:
+            st.image(img_to_send, width=300)
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        
+        mode_text = system_prompts.get(ai_mode, "")
+        
+        with st.spinner("AI javob tayyorlamoqda..."):
+            ai_reply = get_ai_response(prompt, img_to_send, mode_text, pdf_context)
+
+        typed_text = ""
+        for char in ai_reply:
+            typed_text += char
+            message_placeholder.markdown(typed_text + "▌")
+            time.sleep(0.003)
+            
+        message_placeholder.markdown(ai_reply)
+
+    st.session_state.messages.append({
+        "role": "assistant", 
+        "content": ai_reply, 
+        "image": None
+    })
+
+    st.session_state.current_image = None
