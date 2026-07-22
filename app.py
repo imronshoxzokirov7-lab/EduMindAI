@@ -1,7 +1,6 @@
 import streamlit as st
 import time
 import sqlite3
-import hashlib
 from g4f.client import Client
 from PIL import Image
 from pypdf import PdfReader
@@ -18,12 +17,6 @@ st.set_page_config(page_title="EduMindAI Enterprise", page_icon="🧠", layout="
 conn = sqlite3.connect("edumind.db", check_same_thread=False)
 c = conn.cursor()
 
-c.execute('''CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE,
-                password TEXT
-            )''')
-
 c.execute('''CREATE TABLE IF NOT EXISTS chat_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT,
@@ -33,8 +26,8 @@ c.execute('''CREATE TABLE IF NOT EXISTS chat_history (
             )''')
 conn.commit()
 
-def make_hashes(password):
-    return hashlib.sha256(str.encode(password)).hexdigest()
+# Foydalanuvchi nomini sukut bo'yicha "Mehmon" deb belgilaymiz
+DEFAULT_USER = "Mehmon"
 
 # ---------------- WEB SEARCH FUNKSIYASI ----------------
 def search_web(query):
@@ -56,58 +49,20 @@ def text_to_speech(text, lang='uz'):
     except Exception as e:
         return None
 
-# ---------------- AUTH / LOGIN TIZIMI ----------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "username" not in st.session_state:
-    st.session_state.username = ""
-
-if not st.session_state.logged_in:
-    st.title("🧠 EduMindAI Enterprise — Tizimga kirish")
-    
-    auth_tab1, auth_tab2 = st.tabs(["🔑 Kirish", "📝 Ro'yxatdan o'tish"])
-    
-    with auth_tab1:
-        username = st.text_input("Foydalanuvchi nomi", key="login_user")
-        password = st.text_input("Parol", type="password", key="login_pass")
-        if st.button("Kirish", use_container_width=True):
-            hashed_pswd = make_hashes(password)
-            c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, hashed_pswd))
-            result = c.fetchone()
-            if result:
-                st.session_state.logged_in = True
-                st.session_state.username = username
-                st.success(f"Xush kelibsiz, {username}!")
-                st.rerun()
-            else:
-                st.error("Foydalanuvchi nomi yoki parol noto'g'ri!")
-
-    with auth_tab2:
-        new_user = st.text_input("Yangi foydalanuvchi nomi", key="reg_user")
-        new_password = st.text_input("Yangi parol", type="password", key="reg_pass")
-        if st.button("Ro'yxatdan o'tish", use_container_width=True):
-            try:
-                c.execute("INSERT INTO users(username, password) VALUES (?, ?)", (new_user, make_hashes(new_password)))
-                conn.commit()
-                st.success("Muvaffaqiyatli ro'yxatdan o'tdingiz! Endi kirish bo'limidan kiring.")
-            except Exception as e:
-                st.error("Ushbu foydalanuvchi nomi band!")
-    st.stop()
-
 # ---------------- MAIN APP ----------------
-st.title(f"🧠 EduMindAI Enterprise ({st.session_state.username})")
+st.title("🧠 EduMindAI Enterprise")
 st.caption("Multimodal AI, Web Search, Audio & Database")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    c.execute("SELECT role, content FROM chat_history WHERE username = ? ORDER BY id ASC", (st.session_state.username,))
+    c.execute("SELECT role, content FROM chat_history WHERE username = ? ORDER BY id ASC", (DEFAULT_USER,))
     db_messages = c.fetchall()
     if db_messages:
         for r, c_text in db_messages:
             st.session_state.messages.append({"role": r, "content": c_text, "image": None})
     else:
         st.session_state.messages = [
-            {"role": "assistant", "content": f"Salom {st.session_state.username}! Men EduMindAI Enterprise assistentiman.", "image": None}
+            {"role": "assistant", "content": "Salom! Men EduMindAI Enterprise assistentiman. Sizga qanday yordam bera olaman?", "image": None}
         ]
 
 if "current_image" not in st.session_state:
@@ -117,14 +72,6 @@ if "extracted_pdf_text" not in st.session_state:
 
 # ---------------- CHAP PANEL ----------------
 with st.sidebar:
-    st.write(f"👤 **Foydalanuvchi:** {st.session_state.username}")
-    if st.button("🚪 Chiqish", use_container_width=True):
-        st.session_state.logged_in = False
-        st.session_state.username = ""
-        st.session_state.messages = []
-        st.rerun()
-        
-    st.markdown("---")
     st.header("⚙️ Funksiyalar va Qidiruv")
     
     use_web_search = st.checkbox("🌐 Internetdan real-vaqtda qidirish", value=False)
@@ -165,7 +112,7 @@ with st.sidebar:
     }
 
     if st.button("🗑️ Chatni tozalash", use_container_width=True):
-        c.execute("DELETE FROM chat_history WHERE username = ?", (st.session_state.username,))
+        c.execute("DELETE FROM chat_history WHERE username = ?", (DEFAULT_USER,))
         conn.commit()
         st.session_state.messages = [{"role": "assistant", "content": "Chat tarixi tozalandi!", "image": None}]
         st.session_state.current_image = None
@@ -194,61 +141,4 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
         else:
             response = client.chat.completions.create(
                 model="gpt-4o",
-                messages=[{"role": "user", "content": full_prompt}],
-            )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"Xatolik yuz berdi: {str(e)}"
-
-# ---------------- CHAT INTERFEYSI ----------------
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        if message.get("image") is not None:
-            st.image(message["image"], width=300)
-        st.markdown(message["content"])
-
-if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
-    img_to_send = st.session_state.current_image
-    pdf_context = st.session_state.extracted_pdf_text
-
-    st.session_state.messages.append({"role": "user", "content": prompt, "image": img_to_send})
-    c.execute("INSERT INTO chat_history (username, role, content) VALUES (?, ?, ?)", 
-              (st.session_state.username, "user", prompt))
-    conn.commit()
-
-    with st.chat_message("user"):
-        if img_to_send is not None:
-            st.image(img_to_send, width=300)
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        mode_text = system_prompts.get(ai_mode, "")
-        
-        web_res = ""
-        if use_web_search:
-            with st.spinner("🌐 Internetdan so'nggi ma'lumotlar qidirilmoqda..."):
-                web_res = search_web(prompt)
-
-        with st.spinner("AI javob tayyorlamoqda..."):
-            ai_reply = get_ai_response(prompt, img_to_send, mode_text, pdf_context, web_res)
-
-        typed_text = ""
-        for char in ai_reply:
-            typed_text += char
-            message_placeholder.markdown(typed_text + "▌")
-            time.sleep(0.002)
-            
-        message_placeholder.markdown(ai_reply)
-
-        if enable_tts:
-            audio_file = text_to_speech(ai_reply)
-            if audio_file:
-                st.audio(audio_file)
-
-    st.session_state.messages.append({"role": "assistant", "content": ai_reply, "image": None})
-    c.execute("INSERT INTO chat_history (username, role, content) VALUES (?, ?, ?)", 
-              (st.session_state.username, "assistant", ai_reply))
-    conn.commit()
-
-    st.session_state.current_image = None
+                messages=
