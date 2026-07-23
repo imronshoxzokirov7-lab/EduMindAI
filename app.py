@@ -2,15 +2,15 @@ import streamlit as st
 import time
 import sqlite3
 import uuid
+import base64
 import io
-import g4f
 from g4f.client import Client
 from PIL import Image
 from pypdf import PdfReader
 from gtts import gTTS
 from duckduckgo_search import DDGS
 
-# AI Clientini yaratish
+# AI Client
 client = Client()
 
 # Sahifa sozlamalari
@@ -34,16 +34,15 @@ if "user_id" not in st.session_state:
 
 USER_KEY = st.session_state.user_id
 
-# ---------------- WEB SEARCH FUNKSIYASI ----------------
+# ---------------- WEB SEARCH ----------------
 def search_web(query):
     try:
         results = DDGS().text(query, max_results=3)
-        search_text = "\n".join([f"- {r['title']}: {r['body']}" for r in results])
-        return search_text
+        return "\n".join([f"- {r['title']}: {r['body']}" for r in results])
     except Exception:
         return ""
 
-# ---------------- OVOZ YARATISH FUNKSIYASI (TTS) ----------------
+# ---------------- OVOZ YARATISH (TTS) ----------------
 def text_to_speech(text, lang='uz'):
     try:
         clean_text = text[:300].replace("*", "").replace("#", "")
@@ -102,7 +101,7 @@ with st.sidebar:
         if image_file:
             st.session_state.active_image = Image.open(image_file)
             st.image(st.session_state.active_image, use_container_width=True)
-            st.success("🖼️ Rasm yuklandi va AIga tayyor!")
+            st.success("🖼️ Rasm tayyor!")
 
     st.markdown("---")
     ai_mode = st.selectbox(
@@ -127,35 +126,46 @@ with st.sidebar:
 # ---------------- AI JAVOB FUNKSIYASI ----------------
 def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text="", web_results=""):
     try:
-        # 1. MUALLIF SO'ROVI FILTR
+        # 1. FOYDALANUVCHI SO'ROVINI TEKSHIRISH (FILTR)
         lower_prompt = user_prompt.lower()
         creator_questions = ["kim yaratgan", "muallifing kim", "sizni kim yaratgan", "kimsan", "isming nima", "kim ishlab chiqqan"]
         
         if any(q in lower_prompt for q in creator_questions):
             return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise sun'iy intellekt assistentiman."
 
-        full_prompt = f"Sizning ismingiz EduMindAI. Sizni Imronbek Zokirov yaratgan.\n{mode_instruction}\n"
+        full_text_prompt = f"Sizning ismingiz EduMindAI. Sizni Imronbek Zokirov yaratgan.\n{mode_instruction}\n"
         
         if web_results:
-            full_prompt += f"\nInternetdan topilgan so'nggi ma'lumotlar:\n{web_results}\n"
+            full_text_prompt += f"\nInternetdan topilgan so'nggi ma'lumotlar:\n{web_results}\n"
             
         if context_text:
-            full_prompt += f"\nYuklangan fayllar mazmuni:\n{context_text[:3000]}\n"
+            full_text_prompt += f"\nYuklangan fayllar mazmuni:\n{context_text[:3000]}\n"
             
-        full_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
+        full_text_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
 
-        # 2. SO'ROV YUBORISH (XATOLIKSIZ VA BARQAROR)
+        # 2. RASMLI VA MATNLI SO'ROVNIG KODLANISHI
         if img_obj is not None:
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": full_prompt}],
-                image=img_obj
-            )
+            # Rasmni JPEG Base64 matniga aylantiramiz
+            buffered = io.BytesIO()
+            img_obj.convert("RGB").save(buffered, format="JPEG")
+            base64_img = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": full_text_prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}}
+                    ]
+                }
+            ]
         else:
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": full_prompt}]
-            )
+            messages = [{"role": "user", "content": full_text_prompt}]
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages
+        )
             
         raw_reply = response.choices[0].message.content
 
