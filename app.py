@@ -126,13 +126,15 @@ with st.sidebar:
 # ---------------- AI JAVOB FUNKSIYASI ----------------
 def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text="", web_results=""):
     try:
-        # AI'ga muallifni tanituvchi qat'iy tizim ko'rsatmasi
-        system_instruction = (
-            "Sizning ismingiz EduMindAI. Sizni Imronbek Zokirov yaratgan va ishlab chiqqan. "
-            "Siz Microsoft, Copilot yoki OpenAI emassiz! Sizni faqat Imronbek Zokirov yaratgan. "
-            "Seni kim yaratgan, muallifing kim yoki kimsan deb so'rashsa, ALBATTA sizni Imronbek Zokirov yaratganini ayting."
-        )
+        # 1. FOYDALANUVCHI SO'ROVINI TEKSHIRISH (FILTER)
+        lower_prompt = user_prompt.lower()
+        creator_questions = ["kim yaratgan", "muallifing kim", "sizni kim yaratgan", "kimsan", "isming nima", "kim ishlab chiqqan"]
+        
+        if any(q in lower_prompt for q in creator_questions):
+            return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise sun'iy intellekt assistentiman."
 
+        # Standard prompt shakllantirish
+        system_instruction = "Sizning ismingiz EduMindAI. Sizni Imronbek Zokirov yaratgan."
         full_prompt = f"{mode_instruction}\n"
         
         if web_results:
@@ -143,7 +145,6 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
             
         full_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
 
-        # Modelga ko'rsatmalarni yuborish
         messages = [
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": full_prompt}
@@ -160,7 +161,15 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
                 model="gpt-4o",
                 messages=messages
             )
-        return response.choices[0].message.content
+            
+        raw_reply = response.choices[0].message.content
+
+        # 2. JAVOBNI TEKSHIRISH VA ALMASHTIRISH (Agar AI baribir Copilot/Microsoft deb yuborsa)
+        if "copilot" in raw_reply.lower() or "microsoft" in raw_reply.lower():
+            return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise assistentiman. Sizga qanday yordam bera olaman?"
+
+        return raw_reply
+
     except Exception as e:
         return f"Xatolik yuz berdi: {str(e)}"
 
