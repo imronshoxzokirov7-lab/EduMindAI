@@ -2,7 +2,7 @@ import streamlit as st
 import time
 import sqlite3
 import uuid
-import base64
+import io
 from g4f.client import Client
 from PIL import Image
 from pypdf import PdfReader
@@ -28,7 +28,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS chat_history (
             )''')
 conn.commit()
 
-# Har bir foydalanuvchi uchun alohida unikal ID yaratamiz
+# Foydalanuvchi unikal kaliti
 if "user_id" not in st.session_state:
     st.session_state.user_id = str(uuid.uuid4())[:8]
 
@@ -70,10 +70,8 @@ if "messages" not in st.session_state:
             {"role": "assistant", "content": "Salom! Men EduMindAI Enterprise assistentiman. Sizga qanday yordam bera olaman?", "image": None}
         ]
 
-if "current_image_bytes" not in st.session_state:
-    st.session_state.current_image_bytes = None
-if "current_image_obj" not in st.session_state:
-    st.session_state.current_image_obj = None
+if "active_image" not in st.session_state:
+    st.session_state.active_image = None
 if "extracted_pdf_text" not in st.session_state:
     st.session_state.extracted_pdf_text = ""
 
@@ -100,11 +98,10 @@ with st.sidebar:
             st.success("📄 Fayllar o'qib olindi!")
 
     with tab2:
-        image_file = st.file_uploader("Rasm yuklang", type=["jpg", "png", "jpeg"])
+        image_file = st.file_uploader("Rasm yuklang", type=["jpg", "png", "jpeg"], key="img_loader")
         if image_file:
-            st.session_state.current_image_obj = Image.open(image_file)
-            st.session_state.current_image_bytes = image_file.getvalue()
-            st.image(st.session_state.current_image_obj, use_container_width=True)
+            st.session_state.active_image = Image.open(image_file)
+            st.image(st.session_state.active_image, use_container_width=True)
             st.success("🖼️ Rasm tayyor!")
 
     st.markdown("---")
@@ -123,23 +120,21 @@ with st.sidebar:
         c.execute("DELETE FROM chat_history WHERE username = ?", (USER_KEY,))
         conn.commit()
         st.session_state.messages = [{"role": "assistant", "content": "Chat tarixi tozalandi!", "image": None}]
-        st.session_state.current_image_bytes = None
-        st.session_state.current_image_obj = None
+        st.session_state.active_image = None
         st.session_state.extracted_pdf_text = ""
         st.rerun()
 
 # ---------------- AI JAVOB FUNKSIYASI ----------------
-def get_ai_response(user_prompt, img_bytes=None, mode_instruction="", context_text="", web_results=""):
+def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text="", web_results=""):
     try:
-        # 1. FOYDALANUVCHI SO'ROVINI TEKSHIRISH (FILTER)
+        # 1. FOYDALANUVCHI SO'ROVINI TEKSHIRISH (FILTR)
         lower_prompt = user_prompt.lower()
         creator_questions = ["kim yaratgan", "muallifing kim", "sizni kim yaratgan", "kimsan", "isming nima", "kim ishlab chiqqan"]
         
         if any(q in lower_prompt for q in creator_questions):
             return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise sun'iy intellekt assistentiman."
 
-        system_instruction = "Sizning ismingiz EduMindAI. Sizni Imronbek Zokirov yaratgan."
-        full_prompt = f"{mode_instruction}\n"
+        full_prompt = f"Sizning ismingiz EduMindAI. Sizni Imronbek Zokirov yaratgan.\n{mode_instruction}\n"
         
         if web_results:
             full_prompt += f"\nInternetdan topilgan so'nggi ma'lumotlar:\n{web_results}\n"
@@ -149,33 +144,27 @@ def get_ai_response(user_prompt, img_bytes=None, mode_instruction="", context_te
             
         full_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
 
-        # Rasmni Base64 ko'rinishiga keltirish
-        if img_bytes is not None:
-            base64_image = base64.b64encode(img_bytes).decode('utf-8')
-            messages = [
-                {"role": "system", "content": system_instruction},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": full_prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ]
-                }
-            ]
-        else:
-            messages = [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": full_prompt}
-            ]
+        # Rasm mavjud bo'lsa `image` parametri bilan yuboramiz
+        if img_obj is not None:
+            # PIL Image-ni baytlarga o'tkazamiz
+            img_byte_arr = io.BytesIO()
+            img_obj.save(img_byte_arr, format='PNG')
+            img_bytes = img_byte_arr.getvalue()
 
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages
-        )
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": full_prompt}],
+                image=img_bytes
+            )
+        else:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": full_prompt}]
+            )
             
         raw_reply = response.choices[0].message.content
 
-        # 2. JAVOBNI TEKSHIRISH (Copilot/Microsoft deb yuborsa almashtirish)
+        # Copilot/Microsoft so'zlari chiqib qolsa to'g'rilash
         if "copilot" in raw_reply.lower() or "microsoft" in raw_reply.lower():
             return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise assistentiman. Sizga qanday yordam bera olaman?"
 
@@ -192,18 +181,17 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
-    img_bytes_to_send = st.session_state.current_image_bytes
-    img_obj_to_show = st.session_state.current_image_obj
+    current_img = st.session_state.active_image
     pdf_context = st.session_state.extracted_pdf_text
 
-    st.session_state.messages.append({"role": "user", "content": prompt, "image": img_obj_to_show})
+    st.session_state.messages.append({"role": "user", "content": prompt, "image": current_img})
     c.execute("INSERT INTO chat_history (username, role, content) VALUES (?, ?, ?)", 
               (USER_KEY, "user", prompt))
     conn.commit()
 
     with st.chat_message("user"):
-        if img_obj_to_show is not None:
-            st.image(img_obj_to_show, width=300)
+        if current_img is not None:
+            st.image(current_img, width=300)
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
@@ -216,7 +204,7 @@ if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
                 web_res = search_web(prompt)
 
         with st.spinner("AI javob tayyorlamoqda..."):
-            ai_reply = get_ai_response(prompt, img_bytes_to_send, mode_text, pdf_context, web_res)
+            ai_reply = get_ai_response(prompt, current_img, mode_text, pdf_context, web_res)
 
         typed_text = ""
         for char in ai_reply:
@@ -236,5 +224,5 @@ if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
               (USER_KEY, "assistant", ai_reply))
     conn.commit()
 
-    st.session_state.current_image_bytes = None
-    st.session_state.current_image_obj = None
+    # Rasm ishlatilgandan so'ng reset qilamiz
+    st.session_state.active_image = None
