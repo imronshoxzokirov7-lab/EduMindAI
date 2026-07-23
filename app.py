@@ -126,13 +126,14 @@ with st.sidebar:
 # ---------------- AI JAVOB FUNKSIYASI ----------------
 def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text="", web_results=""):
     try:
-        # AI'ga muallifni o'rgatuvchi ko'rsatma
-        identity_prompt = (
+        # AI'ga muallifni tanituvchi qat'iy tizim ko'rsatmasi
+        system_instruction = (
             "Sizning ismingiz EduMindAI. Sizni Imronbek Zokirov yaratgan va ishlab chiqqan. "
-            "Seni kim yaratgan, muallifing kim yoki kimsan deb so'rashsa, albatta sizni Imronbek Zokirov yaratganini ayting.\n\n"
+            "Siz Microsoft, Copilot yoki OpenAI emassiz! Sizni faqat Imronbek Zokirov yaratgan. "
+            "Seni kim yaratgan, muallifing kim yoki kimsan deb so'rashsa, ALBATTA sizni Imronbek Zokirov yaratganini ayting."
         )
-        
-        full_prompt = identity_prompt + f"[{mode_instruction}]\n"
+
+        full_prompt = f"{mode_instruction}\n"
         
         if web_results:
             full_prompt += f"\nInternetdan topilgan so'nggi ma'lumotlar:\n{web_results}\n"
@@ -142,16 +143,22 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
             
         full_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
 
+        # Modelga ko'rsatmalarni yuborish
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": full_prompt}
+        ]
+
         if img_obj is not None:
             response = client.chat.completions.create(
                 model="gpt-4o",
-                messages=[{"role": "user", "content": full_prompt}],
+                messages=messages,
                 image=img_obj
             )
         else:
             response = client.chat.completions.create(
                 model="gpt-4o",
-                messages=[{"role": "user", "content": full_prompt}],
+                messages=messages
             )
         return response.choices[0].message.content
     except Exception as e:
@@ -209,4 +216,3 @@ if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
     conn.commit()
 
     st.session_state.current_image = None
-    
