@@ -144,24 +144,13 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
             
         full_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
 
-        # 2. RASMLI SO'ROV (VISION PROVAYDER BILAN)
+        # 2. SO'ROV YUBORISH (XATOLIKSIZ VA BARQAROR)
         if img_obj is not None:
-            # Rasmni PIL orqali tog'ridan-tog'ri Copilot/Bing Vision serveriga yuboramiz
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    provider=g4f.Provider.Copilot,
-                    messages=[{"role": "user", "content": full_prompt}],
-                    image=img_obj
-                )
-            except Exception:
-                # Muqobil provayder bilan sinash
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    provider=g4f.Provider.Bing,
-                    messages=[{"role": "user", "content": full_prompt}],
-                    image=img_obj
-                )
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": full_prompt}],
+                image=img_obj
+            )
         else:
             response = client.chat.completions.create(
                 model="gpt-4o",
@@ -170,7 +159,6 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
             
         raw_reply = response.choices[0].message.content
 
-        # Copilot/Microsoft so'zlari chiqib qolsa almashtirish
         if "copilot" in raw_reply.lower() or "microsoft" in raw_reply.lower():
             if any(q in lower_prompt for q in creator_questions):
                 return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise assistentiman."
