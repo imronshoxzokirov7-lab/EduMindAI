@@ -3,7 +3,6 @@ import time
 import sqlite3
 import uuid
 import base64
-import io
 from g4f.client import Client
 from PIL import Image
 from pypdf import PdfReader
@@ -29,7 +28,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS chat_history (
             )''')
 conn.commit()
 
-# Har bir foydalanuvchi uchun alohida unikal ID yaratamiz (Yozishmalar aralashib ketmasligi uchun)
+# Har bir foydalanuvchi uchun alohida unikal ID yaratamiz
 if "user_id" not in st.session_state:
     st.session_state.user_id = str(uuid.uuid4())[:8]
 
@@ -41,7 +40,7 @@ def search_web(query):
         results = DDGS().text(query, max_results=3)
         search_text = "\n".join([f"- {r['title']}: {r['body']}" for r in results])
         return search_text
-    except Exception as e:
+    except Exception:
         return ""
 
 # ---------------- OVOZ YARATISH FUNKSIYASI (TTS) ----------------
@@ -52,7 +51,7 @@ def text_to_speech(text, lang='uz'):
         filename = "ai_response.mp3"
         tts.save(filename)
         return filename
-    except Exception as e:
+    except Exception:
         return None
 
 # ---------------- MAIN APP ----------------
@@ -71,8 +70,10 @@ if "messages" not in st.session_state:
             {"role": "assistant", "content": "Salom! Men EduMindAI Enterprise assistentiman. Sizga qanday yordam bera olaman?", "image": None}
         ]
 
-if "current_image" not in st.session_state:
-    st.session_state.current_image = None
+if "current_image_bytes" not in st.session_state:
+    st.session_state.current_image_bytes = None
+if "current_image_obj" not in st.session_state:
+    st.session_state.current_image_obj = None
 if "extracted_pdf_text" not in st.session_state:
     st.session_state.extracted_pdf_text = ""
 
@@ -101,9 +102,10 @@ with st.sidebar:
     with tab2:
         image_file = st.file_uploader("Rasm yuklang", type=["jpg", "png", "jpeg"])
         if image_file:
-            st.session_state.current_image = Image.open(image_file)
-            st.image(st.session_state.current_image, use_container_width=True)
-            st.success("🖼️ Rasm yuklandi!")
+            st.session_state.current_image_obj = Image.open(image_file)
+            st.session_state.current_image_bytes = image_file.getvalue()
+            st.image(st.session_state.current_image_obj, use_container_width=True)
+            st.success("🖼️ Rasm tayyor!")
 
     st.markdown("---")
     ai_mode = st.selectbox(
@@ -121,12 +123,13 @@ with st.sidebar:
         c.execute("DELETE FROM chat_history WHERE username = ?", (USER_KEY,))
         conn.commit()
         st.session_state.messages = [{"role": "assistant", "content": "Chat tarixi tozalandi!", "image": None}]
-        st.session_state.current_image = None
+        st.session_state.current_image_bytes = None
+        st.session_state.current_image_obj = None
         st.session_state.extracted_pdf_text = ""
         st.rerun()
 
 # ---------------- AI JAVOB FUNKSIYASI ----------------
-def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text="", web_results=""):
+def get_ai_response(user_prompt, img_bytes=None, mode_instruction="", context_text="", web_results=""):
     try:
         # 1. FOYDALANUVCHI SO'ROVINI TEKSHIRISH (FILTER)
         lower_prompt = user_prompt.lower()
@@ -146,19 +149,16 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
             
         full_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
 
-        # Rasmni Base64 formatiga o'tkazish (AI rasmni ko'rishi uchun)
-        if img_obj is not None:
-            buffered = io.BytesIO()
-            img_obj.save(buffered, format="PNG")
-            img_str = base64.b64encode(buffered.getvalue()).decode()
-            
+        # Rasmni Base64 ko'rinishiga keltirish
+        if img_bytes is not None:
+            base64_image = base64.b64encode(img_bytes).decode('utf-8')
             messages = [
                 {"role": "system", "content": system_instruction},
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": full_prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_str}"}}
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                     ]
                 }
             ]
@@ -192,17 +192,18 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
-    img_to_send = st.session_state.current_image
+    img_bytes_to_send = st.session_state.current_image_bytes
+    img_obj_to_show = st.session_state.current_image_obj
     pdf_context = st.session_state.extracted_pdf_text
 
-    st.session_state.messages.append({"role": "user", "content": prompt, "image": img_to_send})
+    st.session_state.messages.append({"role": "user", "content": prompt, "image": img_obj_to_show})
     c.execute("INSERT INTO chat_history (username, role, content) VALUES (?, ?, ?)", 
               (USER_KEY, "user", prompt))
     conn.commit()
 
     with st.chat_message("user"):
-        if img_to_send is not None:
-            st.image(img_to_send, width=300)
+        if img_obj_to_show is not None:
+            st.image(img_obj_to_show, width=300)
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
@@ -215,7 +216,7 @@ if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
                 web_res = search_web(prompt)
 
         with st.spinner("AI javob tayyorlamoqda..."):
-            ai_reply = get_ai_response(prompt, img_to_send, mode_text, pdf_context, web_res)
+            ai_reply = get_ai_response(prompt, img_bytes_to_send, mode_text, pdf_context, web_res)
 
         typed_text = ""
         for char in ai_reply:
@@ -235,4 +236,5 @@ if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
               (USER_KEY, "assistant", ai_reply))
     conn.commit()
 
-    st.session_state.current_image = None
+    st.session_state.current_image_bytes = None
+    st.session_state.current_image_obj = None
