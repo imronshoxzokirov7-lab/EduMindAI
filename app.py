@@ -3,6 +3,7 @@ import time
 import sqlite3
 import uuid
 import io
+import g4f
 from g4f.client import Client
 from PIL import Image
 from pypdf import PdfReader
@@ -28,7 +29,6 @@ c.execute('''CREATE TABLE IF NOT EXISTS chat_history (
             )''')
 conn.commit()
 
-# Foydalanuvchi unikal kaliti
 if "user_id" not in st.session_state:
     st.session_state.user_id = str(uuid.uuid4())[:8]
 
@@ -102,7 +102,7 @@ with st.sidebar:
         if image_file:
             st.session_state.active_image = Image.open(image_file)
             st.image(st.session_state.active_image, use_container_width=True)
-            st.success("🖼️ Rasm tayyor!")
+            st.success("🖼️ Rasm yuklandi va AIga tayyor!")
 
     st.markdown("---")
     ai_mode = st.selectbox(
@@ -127,7 +127,7 @@ with st.sidebar:
 # ---------------- AI JAVOB FUNKSIYASI ----------------
 def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text="", web_results=""):
     try:
-        # 1. FOYDALANUVCHI SO'ROVINI TEKSHIRISH (FILTR)
+        # 1. MUALLIF SO'ROVI FILTR
         lower_prompt = user_prompt.lower()
         creator_questions = ["kim yaratgan", "muallifing kim", "sizni kim yaratgan", "kimsan", "isming nima", "kim ishlab chiqqan"]
         
@@ -144,18 +144,24 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
             
         full_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
 
-        # Rasm mavjud bo'lsa `image` parametri bilan yuboramiz
+        # 2. RASMLI SO'ROV (VISION PROVAYDER BILAN)
         if img_obj is not None:
-            # PIL Image-ni baytlarga o'tkazamiz
-            img_byte_arr = io.BytesIO()
-            img_obj.save(img_byte_arr, format='PNG')
-            img_bytes = img_byte_arr.getvalue()
-
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": full_prompt}],
-                image=img_bytes
-            )
+            # Rasmni PIL orqali tog'ridan-tog'ri Copilot/Bing Vision serveriga yuboramiz
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    provider=g4f.Provider.Copilot,
+                    messages=[{"role": "user", "content": full_prompt}],
+                    image=img_obj
+                )
+            except Exception:
+                # Muqobil provayder bilan sinash
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    provider=g4f.Provider.Bing,
+                    messages=[{"role": "user", "content": full_prompt}],
+                    image=img_obj
+                )
         else:
             response = client.chat.completions.create(
                 model="gpt-4o",
@@ -164,9 +170,10 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
             
         raw_reply = response.choices[0].message.content
 
-        # Copilot/Microsoft so'zlari chiqib qolsa to'g'rilash
+        # Copilot/Microsoft so'zlari chiqib qolsa almashtirish
         if "copilot" in raw_reply.lower() or "microsoft" in raw_reply.lower():
-            return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise assistentiman. Sizga qanday yordam bera olaman?"
+            if any(q in lower_prompt for q in creator_questions):
+                return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise assistentiman."
 
         return raw_reply
 
@@ -224,5 +231,4 @@ if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
               (USER_KEY, "assistant", ai_reply))
     conn.commit()
 
-    # Rasm ishlatilgandan so'ng reset qilamiz
     st.session_state.active_image = None
