@@ -2,6 +2,8 @@ import streamlit as st
 import time
 import sqlite3
 import uuid
+import base64
+import io
 from g4f.client import Client
 from PIL import Image
 from pypdf import PdfReader
@@ -133,7 +135,6 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
         if any(q in lower_prompt for q in creator_questions):
             return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise sun'iy intellekt assistentiman."
 
-        # Standard prompt shakllantirish
         system_instruction = "Sizning ismingiz EduMindAI. Sizni Imronbek Zokirov yaratgan."
         full_prompt = f"{mode_instruction}\n"
         
@@ -145,26 +146,36 @@ def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text
             
         full_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
 
-        messages = [
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": full_prompt}
-        ]
-
+        # Rasmni Base64 formatiga o'tkazish (AI rasmni ko'rishi uchun)
         if img_obj is not None:
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=messages,
-                image=img_obj
-            )
+            buffered = io.BytesIO()
+            img_obj.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            
+            messages = [
+                {"role": "system", "content": system_instruction},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": full_prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_str}"}}
+                    ]
+                }
+            ]
         else:
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=messages
-            )
+            messages = [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": full_prompt}
+            ]
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages
+        )
             
         raw_reply = response.choices[0].message.content
 
-        # 2. JAVOBNI TEKSHIRISH VA ALMASHTIRISH (Agar AI baribir Copilot/Microsoft deb yuborsa)
+        # 2. JAVOBNI TEKSHIRISH (Copilot/Microsoft deb yuborsa almashtirish)
         if "copilot" in raw_reply.lower() or "microsoft" in raw_reply.lower():
             return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise assistentiman. Sizga qanday yordam bera olaman?"
 
