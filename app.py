@@ -27,7 +27,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS chat_history (
             )''')
 conn.commit()
 
-# Har bir foydalanuvchi uchun alohida unikal ID yaratamiz (Aralashib ketmasligi uchun)
+# Har bir foydalanuvchi uchun alohida unikal ID yaratamiz (Yozishmalar aralashib ketmasligi uchun)
 if "user_id" not in st.session_state:
     st.session_state.user_id = str(uuid.uuid4())[:8]
 
@@ -126,7 +126,13 @@ with st.sidebar:
 # ---------------- AI JAVOB FUNKSIYASI ----------------
 def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text="", web_results=""):
     try:
-        full_prompt = f"[{mode_instruction}]\n"
+        # AI'ga muallifni o'rgatuvchi ko'rsatma
+        identity_prompt = (
+            "Sizning ismingiz EduMindAI. Sizni Imronbek Zokirov yaratgan va ishlab chiqqan. "
+            "Seni kim yaratgan, muallifing kim yoki kimsan deb so'rashsa, albatta sizni Imronbek Zokirov yaratganini ayting.\n\n"
+        )
+        
+        full_prompt = identity_prompt + f"[{mode_instruction}]\n"
         
         if web_results:
             full_prompt += f"\nInternetdan topilgan so'nggi ma'lumotlar:\n{web_results}\n"
@@ -203,3 +209,4 @@ if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
     conn.commit()
 
     st.session_state.current_image = None
+    
