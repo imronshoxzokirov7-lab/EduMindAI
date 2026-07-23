@@ -1,6 +1,7 @@
 import streamlit as st
 import time
 import sqlite3
+import uuid
 from g4f.client import Client
 from PIL import Image
 from pypdf import PdfReader
@@ -26,8 +27,11 @@ c.execute('''CREATE TABLE IF NOT EXISTS chat_history (
             )''')
 conn.commit()
 
-# Foydalanuvchi nomini sukut bo'yicha "Mehmon" deb belgilaymiz
-DEFAULT_USER = "Mehmon"
+# Har bir foydalanuvchi uchun alohida unikal ID yaratamiz (Aralashib ketmasligi uchun)
+if "user_id" not in st.session_state:
+    st.session_state.user_id = str(uuid.uuid4())[:8]
+
+USER_KEY = st.session_state.user_id
 
 # ---------------- WEB SEARCH FUNKSIYASI ----------------
 def search_web(query):
@@ -55,7 +59,7 @@ st.caption("Multimodal AI, Web Search, Audio & Database")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    c.execute("SELECT role, content FROM chat_history WHERE username = ? ORDER BY id ASC", (DEFAULT_USER,))
+    c.execute("SELECT role, content FROM chat_history WHERE username = ? ORDER BY id ASC", (USER_KEY,))
     db_messages = c.fetchall()
     if db_messages:
         for r, c_text in db_messages:
@@ -112,7 +116,7 @@ with st.sidebar:
     }
 
     if st.button("🗑️ Chatni tozalash", use_container_width=True):
-        c.execute("DELETE FROM chat_history WHERE username = ?", (DEFAULT_USER,))
+        c.execute("DELETE FROM chat_history WHERE username = ?", (USER_KEY,))
         conn.commit()
         st.session_state.messages = [{"role": "assistant", "content": "Chat tarixi tozalandi!", "image": None}]
         st.session_state.current_image = None
@@ -160,7 +164,7 @@ if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
 
     st.session_state.messages.append({"role": "user", "content": prompt, "image": img_to_send})
     c.execute("INSERT INTO chat_history (username, role, content) VALUES (?, ?, ?)", 
-              (DEFAULT_USER, "user", prompt))
+              (USER_KEY, "user", prompt))
     conn.commit()
 
     with st.chat_message("user"):
@@ -195,7 +199,7 @@ if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
 
     st.session_state.messages.append({"role": "assistant", "content": ai_reply, "image": None})
     c.execute("INSERT INTO chat_history (username, role, content) VALUES (?, ?, ?)", 
-              (DEFAULT_USER, "assistant", ai_reply))
+              (USER_KEY, "assistant", ai_reply))
     conn.commit()
 
     st.session_state.current_image = None
