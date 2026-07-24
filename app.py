@@ -1,232 +1,405 @@
-import streamlit as st
-import time
-import sqlite3
+"""
+============================================================
+EduMindAI Enterprise v3.0
+Main Application
+============================================================
+"""
+
+# ==========================================================
+# IMPORTS
+# ==========================================================
+
 import uuid
-import base64
-import io
-from g4f.client import Client
-from PIL import Image
-from pypdf import PdfReader
-from gtts import gTTS
-from duckduckgo_search import DDGS
 
-# AI Client
-client = Client()
+import streamlit as st
 
-# Sahifa sozlamalari
-st.set_page_config(page_title="EduMindAI Enterprise", page_icon="🧠", layout="wide")
+from config import *
 
-# ---------------- MA'LUMOTLAR BAZASI (SQLITE) ----------------
-conn = sqlite3.connect("edumind.db", check_same_thread=False)
-c = conn.cursor()
+from database import db
 
-c.execute('''CREATE TABLE IF NOT EXISTS chat_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT,
-                role TEXT,
-                content TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )''')
-conn.commit()
+
+from ai_engine import ai
+
+from search import search
+
+from speech import speech
+
+from vision import vision
+
+from pdf_reader import pdf_reader
+from style import style
+
+style.load()
+
+# ==========================================================
+# PAGE CONFIG
+# ==========================================================
+
+st.set_page_config(
+
+    page_title="EduMindAI Enterprise",
+
+    page_icon="🧠",
+
+    layout="wide",
+
+    initial_sidebar_state="expanded"
+
+)
+
+# ==========================================================
+# SESSION STATE
+# ==========================================================
+
+if "logged_in" not in st.session_state:
+
+    st.session_state.logged_in = True
 
 if "user_id" not in st.session_state:
-    st.session_state.user_id = str(uuid.uuid4())[:8]
 
-USER_KEY = st.session_state.user_id
+    st.session_state.user_id = str(uuid.uuid4())
 
-# ---------------- WEB SEARCH ----------------
-def search_web(query):
-    try:
-        results = DDGS().text(query, max_results=3)
-        return "\n".join([f"- {r['title']}: {r['body']}" for r in results])
-    except Exception:
-        return ""
+if "username" not in st.session_state:
 
-# ---------------- OVOZ YARATISH (TTS) ----------------
-def text_to_speech(text, lang='uz'):
-    try:
-        clean_text = text[:300].replace("*", "").replace("#", "")
-        tts = gTTS(text=clean_text, lang='tr' if lang=='uz' else 'en', slow=False)
-        filename = "ai_response.mp3"
-        tts.save(filename)
-        return filename
-    except Exception:
-        return None
+    st.session_state.username = "Guest"
 
-# ---------------- MAIN APP ----------------
-st.title("🧠 EduMindAI Enterprise")
-st.caption("Multimodal AI, Web Search, Audio & Database")
+if "plan" not in st.session_state:
+
+    st.session_state.plan = "Free"
 
 if "messages" not in st.session_state:
+
     st.session_state.messages = []
-    c.execute("SELECT role, content FROM chat_history WHERE username = ? ORDER BY id ASC", (USER_KEY,))
-    db_messages = c.fetchall()
-    if db_messages:
-        for r, c_text in db_messages:
-            st.session_state.messages.append({"role": r, "content": c_text, "image": None})
-    else:
-        st.session_state.messages = [
-            {"role": "assistant", "content": "Salom! Men EduMindAI Enterprise assistentiman. Sizga qanday yordam bera olaman?", "image": None}
-        ]
 
-if "active_image" not in st.session_state:
-    st.session_state.active_image = None
-if "extracted_pdf_text" not in st.session_state:
-    st.session_state.extracted_pdf_text = ""
+if "uploaded_image" not in st.session_state:
 
-# ---------------- CHAP PANEL ----------------
+    st.session_state.uploaded_image = None
+
+if "document_text" not in st.session_state:
+
+    st.session_state.document_text = ""
+
+# ==========================================================
+# TITLE
+# ==========================================================
+
+st.title("🧠 EduMindAI Enterprise")
+
+st.caption(
+    "AI Chat • Vision • PDF • Internet Search • Voice Assistant"
+)
+
+st.divider()
+# ==========================================================
+# SIDEBAR
+# ==========================================================
+
 with st.sidebar:
-    st.header("⚙️ Funksiyalar va Qidiruv")
-    
-    use_web_search = st.checkbox("🌐 Internetdan real-vaqtda qidirish", value=False)
-    enable_tts = st.checkbox("🔊 AI javobini ovozli o'qish (TTS)", value=True)
 
-    tab1, tab2 = st.tabs(["📄 Fayl/PDF", "🖼️ Rasm"])
-
-    with tab1:
-        files = st.file_uploader("PDF/TXT yuklang", type=["pdf", "txt"], accept_multiple_files=True)
-        if files:
-            for file in files:
-                if file.type == "application/pdf":
-                    reader = PdfReader(file)
-                    text = "".join([page.extract_text() or "" for page in reader.pages])
-                    st.session_state.extracted_pdf_text += f"\n--- {file.name} ---\n" + text
-                elif file.type == "text/plain":
-                    text = str(file.read(), "utf-8")
-                    st.session_state.extracted_pdf_text += f"\n--- {file.name} ---\n" + text
-            st.success("📄 Fayllar o'qib olindi!")
-
-    with tab2:
-        image_file = st.file_uploader("Rasm yuklang", type=["jpg", "png", "jpeg"], key="img_loader")
-        if image_file:
-            st.session_state.active_image = Image.open(image_file)
-            st.image(st.session_state.active_image, use_container_width=True)
-            st.success("🖼️ Rasm tayyor!")
+    st.title("⚙️ EduMindAI")
 
     st.markdown("---")
-    ai_mode = st.selectbox(
-        "AI Rejimini tanlang:",
-        ["🎓 O'qituvchi Rejimi (Batafsil)", "⚡ Qisqa va Tezkor", "💻 Dasturchi Rejimi"]
+
+    st.subheader("👤 Account")
+
+    st.write(
+        f"**Username:** {st.session_state.username}"
     )
 
-    system_prompts = {
-        "🎓 O'qituvchi Rejimi (Batafsil)": "Siz tajribali o'qituvchisiz. Savollarga o'zbek tilida, tushunarli va batafsil javob bering.",
-        "⚡ Qisqa va Tezkor": "Siz qisqa va aniq javob beruvchi assistentsiz.",
-        "💻 Dasturchi Rejimi": "Siz tajribali dasturchisiz. Kodingizni toza va xatosiz ko'rinishda taqdim eting."
-    }
+    st.write(
+        f"**Plan:** {st.session_state.plan}"
+    )
 
-    if st.button("🗑️ Chatni tozalash", use_container_width=True):
-        c.execute("DELETE FROM chat_history WHERE username = ?", (USER_KEY,))
-        conn.commit()
-        st.session_state.messages = [{"role": "assistant", "content": "Chat tarixi tozalandi!", "image": None}]
-        st.session_state.active_image = None
-        st.session_state.extracted_pdf_text = ""
-        st.rerun()
+    st.markdown("---")
 
-# ---------------- AI JAVOB FUNKSIYASI ----------------
-def get_ai_response(user_prompt, img_obj=None, mode_instruction="", context_text="", web_results=""):
-    try:
-        # 1. FOYDALANUVCHI SO'ROVINI TEKSHIRISH (FILTR)
-        lower_prompt = user_prompt.lower()
-        creator_questions = ["kim yaratgan", "muallifing kim", "sizni kim yaratgan", "kimsan", "isming nima", "kim ishlab chiqqan"]
-        
-        if any(q in lower_prompt for q in creator_questions):
-            return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise sun'iy intellekt assistentiman."
+    st.subheader("🤖 AI Settings")
 
-        full_text_prompt = f"Sizning ismingiz EduMindAI. Sizni Imronbek Zokirov yaratgan.\n{mode_instruction}\n"
-        
-        if web_results:
-            full_text_prompt += f"\nInternetdan topilgan so'nggi ma'lumotlar:\n{web_results}\n"
-            
-        if context_text:
-            full_text_prompt += f"\nYuklangan fayllar mazmuni:\n{context_text[:3000]}\n"
-            
-        full_text_prompt += f"\nFoydalanuvchi so'rovi: {user_prompt}"
+    ai_model = st.selectbox(
 
-        # 2. RASMLI VA MATNLI SO'ROVNIG KODLANISHI
-        if img_obj is not None:
-            # Rasmni JPEG Base64 matniga aylantiramiz
-            buffered = io.BytesIO()
-            img_obj.convert("RGB").save(buffered, format="JPEG")
-            base64_img = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        "AI Model",
 
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": full_text_prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}}
-                    ]
-                }
-            ]
-        else:
-            messages = [{"role": "user", "content": full_text_prompt}]
+        [
 
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages
+            "gpt-4o",
+
+            "gpt-4.1",
+
+            "gpt-4",
+
+            "gpt-3.5-turbo"
+
+        ],
+
+        index=0
+
+    )
+
+    ai.set_model(ai_model)
+
+    ai_mode = st.selectbox(
+
+        "AI Mode",
+
+        [
+
+            "Teacher",
+
+            "Programmer",
+
+            "Fast",
+
+            "Creative"
+
+        ]
+
+    )
+
+    st.markdown("---")
+
+    st.subheader("🌐 Features")
+
+    enable_web = st.toggle(
+
+        "Internet Search",
+
+        value=False
+
+    )
+
+    enable_tts = st.toggle(
+
+        "Voice Response",
+
+        value=True
+
+    )
+
+    enable_memory = st.toggle(
+
+        "Conversation Memory",
+
+        value=True
+
+    )
+
+    st.markdown("---")
+
+    st.subheader("📄 Upload")
+
+    uploaded_files = st.file_uploader(
+
+        "PDF / TXT",
+
+        type=[
+
+            "pdf",
+
+            "txt"
+
+        ],
+
+        accept_multiple_files=True
+
+    )
+
+    if uploaded_files:
+
+        st.session_state.document_text = (
+
+            pdf_reader.read_multiple(
+
+                uploaded_files
+
+            )
+
         )
-            
-        raw_reply = response.choices[0].message.content
 
-        if "copilot" in raw_reply.lower() or "microsoft" in raw_reply.lower():
-            if any(q in lower_prompt for q in creator_questions):
-                return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise assistentiman."
+        st.success("Documents loaded.")
 
-        return raw_reply
+    st.markdown("---")
 
-    except Exception as e:
-        return f"Xatolik yuz berdi: {str(e)}"
+    uploaded_image = st.file_uploader(
 
-# ---------------- CHAT INTERFEYSI ----------------
+        "Image",
+
+        type=[
+
+            "png",
+
+            "jpg",
+
+            "jpeg"
+
+        ]
+
+    )
+
+    if uploaded_image:
+
+        image = vision.open(
+
+            uploaded_image
+
+        )
+
+        st.session_state.uploaded_image = image
+
+        st.image(
+
+            image,
+
+            use_container_width=True
+
+        )
+
+        st.success("Image loaded.")
+
+    st.markdown("---")
+
+    if st.button(
+
+        "🗑 Clear Chat",
+
+        use_container_width=True
+
+    ):
+
+        st.session_state.messages = []
+
+        st.rerun()
+        # ==========================================================
+# CHAT HISTORY
+# ==========================================================
+
 for message in st.session_state.messages:
+
     with st.chat_message(message["role"]):
+
         if message.get("image") is not None:
-            st.image(message["image"], width=300)
+
+            st.image(
+                message["image"],
+                use_container_width=True
+            )
+
         st.markdown(message["content"])
 
-if prompt := st.chat_input("EduMindAI Enterprise'ga savol bering..."):
-    current_img = st.session_state.active_image
-    pdf_context = st.session_state.extracted_pdf_text
+# ==========================================================
+# CHAT INPUT
+# ==========================================================
 
-    st.session_state.messages.append({"role": "user", "content": prompt, "image": current_img})
-    c.execute("INSERT INTO chat_history (username, role, content) VALUES (?, ?, ?)", 
-              (USER_KEY, "user", prompt))
-    conn.commit()
+prompt = st.chat_input(
+    "EduMindAI Enterprise bilan suhbatni boshlang..."
+)
+
+if prompt:
+
+    current_image = st.session_state.uploaded_image
+
+    st.session_state.messages.append({
+
+        "role": "user",
+
+        "content": prompt,
+
+        "image": current_image
+
+    })
 
     with st.chat_message("user"):
-        if current_img is not None:
-            st.image(current_img, width=300)
+
+        if current_image is not None:
+
+            st.image(
+                current_image,
+                use_container_width=True
+            )
+
         st.markdown(prompt)
 
+    web_context = ""
+
+    if enable_web:
+
+        with st.spinner(
+            "🌐 Internetdan qidirilmoqda..."
+        ):
+
+            web_context = search.search_context(prompt)
+
     with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        mode_text = system_prompts.get(ai_mode, "")
-        
-        web_res = ""
-        if use_web_search:
-            with st.spinner("🌐 Internetdan so'nggi ma'lumotlar qidirilmoqda..."):
-                web_res = search_web(prompt)
 
-        with st.spinner("AI javob tayyorlamoqda..."):
-            ai_reply = get_ai_response(prompt, current_img, mode_text, pdf_context, web_res)
+        placeholder = st.empty()
 
-        typed_text = ""
-        for char in ai_reply:
-            typed_text += char
-            message_placeholder.markdown(typed_text + "▌")
-            time.sleep(0.002)
-            
-        message_placeholder.markdown(ai_reply)
+        response = ""
+
+        history = None
+
+        if enable_memory:
+
+            history = st.session_state.messages
+
+        with st.spinner(
+            "🤖 EduMindAI javob tayyorlamoqda..."
+        ):
+
+            if current_image is None:
+
+                for chunk in ai.stream_chat(
+
+                    user_prompt=prompt,
+
+                    history=history,
+
+                    context=st.session_state.document_text,
+
+                    web_search=web_context
+
+                ):
+
+                    if chunk is not None:
+                        response += str(chunk)
+
+                    placeholder.markdown(
+                        response + "▌"
+                    )
+
+            else:
+
+                response = ai.vision_chat(
+
+                    image=current_image,
+
+                    user_prompt=prompt,
+
+                    context=st.session_state.document_text,
+
+                    web_search=web_context
+
+                )
+
+        placeholder.markdown(response)
 
         if enable_tts:
-            audio_file = text_to_speech(ai_reply)
-            if audio_file:
-                st.audio(audio_file)
 
-    st.session_state.messages.append({"role": "assistant", "content": ai_reply, "image": None})
-    c.execute("INSERT INTO chat_history (username, role, content) VALUES (?, ?, ?)", 
-              (USER_KEY, "assistant", ai_reply))
-    conn.commit()
+            audio = speech.quick(response)
 
-    st.session_state.active_image = None
+            if audio:
+
+                st.audio(audio)
+
+    st.session_state.messages.append({
+
+        "role": "assistant",
+
+        "content": response,
+
+        "image": None
+
+    })
+
+    st.session_state.uploaded_image = None
+    
+
+
+   
