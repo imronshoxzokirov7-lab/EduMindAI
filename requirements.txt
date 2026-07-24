@@ -4,3 +4,5 @@ Pillow
 pypdf
 gTTS
 duckduckgo_search
+python-dotenv
+bcrypt
