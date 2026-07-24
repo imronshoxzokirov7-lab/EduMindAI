@@ -244,27 +244,17 @@ SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY", "")
 # AI MODELS
 # ============================================================
 
-AVAILABLE_MODELS = {
-
-    "GPT-4o": "gpt-4o",
-
-    "GPT-4.1": "gpt-4.1",
-
-    "GPT-4.1-mini": "gpt-4.1-mini",
-
-    "Gemini 2.5 Flash": "gemini-2.5-flash",
-
-    "Gemini 2.5 Pro": "gemini-2.5-pro",
-
-    "Claude Sonnet": "claude-sonnet-4",
-
-    "DeepSeek Chat": "deepseek-chat",
-
-    "DeepSeek Reasoner": "deepseek-reasoner",
-
-    "Llama 3.3": "llama-3.3",
-
-    "Qwen 3": "qwen3"
+    AVAILABLE_MODELS = {
+    "🧠 GPT-4o (Tavsiya)": "gpt-4o",
+    "💻 GPT-4.1": "gpt-4.1",
+    "⚡ GPT-4.1 Mini": "gpt-4.1-mini",
+    "🌟 Gemini 2.5 Flash": "gemini-2.5-flash",
+    "🚀 Gemini 2.5 Pro": "gemini-2.5-pro",
+    "🎯 Claude Sonnet 4": "claude-sonnet-4",
+    "🦙 Llama 3.3": "llama-3.3",
+    "🔷 Qwen 3": "qwen3",
+    "🔍 DeepSeek Chat": "deepseek-chat"
+}
 
 }
 
