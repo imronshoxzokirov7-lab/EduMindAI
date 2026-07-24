@@ -244,7 +244,7 @@ SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY", "")
 # AI MODELS
 # ============================================================
 
-   AVAILABLE_MODELS = {
+AVAILABLE_MODELS = {
 
     "GPT-4o": "gpt-4o",
 
