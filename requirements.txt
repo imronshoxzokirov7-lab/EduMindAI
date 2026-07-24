@@ -6,3 +6,4 @@ gTTS
 duckduckgo_search
 python-dotenv
 bcrypt
+PyMuPDF==1.26.3
