@@ -60,9 +60,7 @@ if "document_text" not in st.session_state:
 # ==========================================================
 
 st.title("🧠 EduMindAI Enterprise")
-st.caption(
-    "AI Chat • Vision • Image Generation • PDF • Internet Search • Voice Assistant"
-)
+st.caption("AI Chat • Vision • Image Generation • PDF • Internet Search • Voice Assistant")
 st.divider()
 
 # ==========================================================
@@ -111,16 +109,16 @@ with st.sidebar:
     st.markdown("---")
 
     st.subheader("🖼️ Upload Image")
-    uploaded_image = st.file_uploader(
+    uploaded_image_file = st.file_uploader(
         "Image",
-        type=["png", "jpg", "jpeg"]
+        type=["png", "jpg", "jpeg"],
+        key="image_uploader"
     )
 
-    if uploaded_image:
-        image = vision.open(uploaded_image)
-        st.session_state.uploaded_image = image
-        st.image(image, use_container_width=True)
-        st.success("Image loaded successfully.")
+    if uploaded_image_file is not None:
+        st.session_state.uploaded_image = vision.open(uploaded_image_file)
+        st.image(st.session_state.uploaded_image, caption="Yuklangan rasm", use_container_width=True)
+        st.success("Rasm muvaffaqiyatli yuklandi!")
 
     st.markdown("---")
 
@@ -147,30 +145,27 @@ for message in st.session_state.messages:
 prompt = st.chat_input("EduMindAI Enterprise bilan suhbatni boshlang...")
 
 if prompt:
-    current_image = st.session_state.uploaded_image
+    # Hozirgi rasm nusxasi
+    active_image = st.session_state.uploaded_image
 
+    # Foydalanuvchi xabarini saqlash
     st.session_state.messages.append({
         "role": "user",
         "content": prompt,
-        "image": current_image
+        "image": active_image
     })
 
     with st.chat_message("user"):
-        if current_image is not None:
-            st.image(current_image, use_container_width=True)
+        if active_image is not None:
+            st.image(active_image, use_container_width=True)
         st.markdown(prompt)
 
-    web_context = ""
-    if enable_web and not enable_img_gen:
-        with st.spinner("🌐 Internetdan qidirilmoqda..."):
-            web_context = search.search_context(prompt)
-
+    # Javob tayyorlash
     with st.chat_message("assistant"):
         placeholder = st.empty()
         response = ""
-        history = st.session_state.messages if enable_memory else None
 
-        # 1. RASM GENERATSIYASI
+        # 1. RASM CHIZISH REJIMI
         if enable_img_gen:
             with st.spinner("🎨 AI rasm chizmoqda..."):
                 img_url = ai.generate_image(prompt)
@@ -178,23 +173,29 @@ if prompt:
                     st.image(img_url, caption=f"Yaratilgan rasm: {prompt}", use_container_width=True)
                     response = f"Mana siz so'ragan rasm: {img_url}"
                 else:
-                    response = "❌ Rasm yaratishda xatolik yuz berdi. Qaytadan urinib ko'ring."
+                    response = "❌ Rasm yaratishda xatolik yuz berdi."
             placeholder.markdown(response)
 
-        # 2. RASM TAHLILI (VISION REJIMI)
-        elif current_image is not None:
-            with st.spinner("🖼️ Rasm tahlil qilinmoqda..."):
+        # 2. RASM TAHLIL QILISH (VISION)
+        elif active_image is not None:
+            with st.spinner("🖼️ AI rasmni ko'rib tahlil qilmoqda..."):
                 response = ai.vision_chat(
-                    image=current_image,
-                    user_prompt=prompt,
-                    context=st.session_state.document_text,
-                    web_search=web_context
+                    image=active_image,
+                    user_prompt=prompt
                 )
             placeholder.markdown(response)
+            # Rasm javobi olingach sidebardagi rasmni tozalaymiz
+            st.session_state.uploaded_image = None
 
-        # 3. ODDIY MATNLI CHAT
+        # 3. ODDIY MATN CHAT
         else:
-            with st.spinner("🤖 EduMindAI javob tayyorlamoqda..."):
+            web_context = ""
+            if enable_web:
+                with st.spinner("🌐 Internetdan qidirilmoqda..."):
+                    web_context = search.search_context(prompt)
+
+            with st.spinner("🤖 EduMindAI javob bermoqda..."):
+                history = st.session_state.messages if enable_memory else None
                 for chunk in ai.stream_chat(
                     user_prompt=prompt,
                     history=history,
@@ -206,17 +207,15 @@ if prompt:
                         placeholder.markdown(response + "▌")
             placeholder.markdown(response)
 
-        # OVOZLI O'QISH
+        # OVOZ
         if enable_tts and not enable_img_gen:
             audio = speech.quick(response)
             if audio:
                 st.audio(audio)
 
+    # Javobni saqlash
     st.session_state.messages.append({
         "role": "assistant",
         "content": response,
         "image": None
     })
-
-    # Rasm tahlil qilib bo'lingach, session stateni tozalaymiz
-    st.session_state.uploaded_image = None
