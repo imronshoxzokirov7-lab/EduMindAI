@@ -1,12 +1,13 @@
 """
 ============================================================
 EduMindAI Enterprise v3.0
-AI Engine
+AI Engine (Pollinations Vision - 100% Free & No API Key Required)
 ============================================================
 """
 
 import base64
 import io
+import requests
 import g4f
 from PIL import Image
 from config import DEFAULT_MODEL, SYSTEM_PROMPT
@@ -67,7 +68,7 @@ class AIEngine:
             yield f"❌ Xatolik yuz berdi: {str(e)}"
 
     # =====================================================
-    # VISION CHAT (Rasmlarni Tahlil Qilish)
+    # VISION CHAT (API KALITSIZ 100% ISHLAYDIGAN VISION)
     # =====================================================
 
     def vision_chat(self, image: Image.Image, user_prompt: str):
@@ -76,19 +77,36 @@ class AIEngine:
             return creator_reply
 
         try:
-            img_byte_arr = io.BytesIO()
-            image.convert("RGB").save(img_byte_arr, format='JPEG')
-            img_bytes = img_byte_arr.getvalue()
+            # Rasmni Base64 formatiga o'tkazish
+            buffered = io.BytesIO()
+            image.convert("RGB").save(buffered, format="JPEG")
+            img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            base64_image = f"data:image/jpeg;base64,{img_str}"
 
-            # Ishonchli va avtomatik provayder tanlovidan foydalanamiz
-            response = g4f.ChatCompletion.create(
-                model=g4f.models.gpt_4o,
-                messages=[{"role": "user", "content": f"{user_prompt}\n(Ushbu rasmni tahlil qil va savolga javob ber)"}],
-                image=img_bytes
-            )
-            return response
+            # Pollinations AI ochiq vision serveriga yuborish
+            payload = {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"{user_prompt} (O'zbek tilida batafsil javob ber)"},
+                            {"type": "image_url", "image_url": {"url": base64_image}}
+                        ]
+                    }
+                ],
+                "model": "openai"
+            }
+
+            headers = {"Content-Type": "application/json"}
+            response = requests.post("https://text.pollinations.ai/", json=payload, headers=headers, timeout=30)
+
+            if response.status_code == 200:
+                return response.text
+            else:
+                return f"❌ Server javob bermadi (Status Code: {response.status_code})"
+
         except Exception as e:
-            return f"❌ Rasmni tahlil qilishda xatolik yuz berdi. Iltimos qayta urinib ko'ring: {str(e)}"
+            return f"❌ Rasmni tahlil qilishda xatolik yuz berdi: {str(e)}"
 
     # =====================================================
     # IMAGE GENERATION
