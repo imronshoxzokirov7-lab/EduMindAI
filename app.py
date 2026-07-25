@@ -5,10 +5,6 @@ Main Application
 ============================================================
 """
 
-# ==========================================================
-# IMPORTS
-# ==========================================================
-
 import uuid
 import streamlit as st
 
@@ -91,22 +87,17 @@ with st.sidebar:
     )
     ai.set_model(ai_model)
 
-    ai_mode = st.selectbox(
-        "AI Mode",
-        ["Teacher", "Programmer", "Fast", "Creative"]
-    )
-
     st.markdown("---")
 
     st.subheader("🌐 Features")
     enable_web = st.toggle("Internet Search", value=False)
-    enable_tts = st.toggle("Voice Response", value=True)
+    enable_tts = st.toggle("Voice Response", value=False)
     enable_memory = st.toggle("Conversation Memory", value=True)
-    enable_img_gen = st.toggle("🎨 Image Generation", value=False)  # <-- QO'SHILDI
+    enable_img_gen = st.toggle("🎨 Image Generation", value=False)
 
     st.markdown("---")
 
-    st.subheader("📄 Upload")
+    st.subheader("📄 Upload Document")
     uploaded_files = st.file_uploader(
         "PDF / TXT",
         type=["pdf", "txt"],
@@ -119,6 +110,7 @@ with st.sidebar:
 
     st.markdown("---")
 
+    st.subheader("🖼️ Upload Image")
     uploaded_image = st.file_uploader(
         "Image",
         type=["png", "jpg", "jpeg"]
@@ -128,7 +120,7 @@ with st.sidebar:
         image = vision.open(uploaded_image)
         st.session_state.uploaded_image = image
         st.image(image, use_container_width=True)
-        st.success("Image loaded.")
+        st.success("Image loaded successfully.")
 
     st.markdown("---")
 
@@ -178,7 +170,7 @@ if prompt:
         response = ""
         history = st.session_state.messages if enable_memory else None
 
-        # 1. RASM GENERATSIYASI REJIMI YOQILGAN BO'LSA
+        # 1. RASM GENERATSIYASI
         if enable_img_gen:
             with st.spinner("🎨 AI rasm chizmoqda..."):
                 img_url = ai.generate_image(prompt)
@@ -189,8 +181,19 @@ if prompt:
                     response = "❌ Rasm yaratishda xatolik yuz berdi. Qaytadan urinib ko'ring."
             placeholder.markdown(response)
 
-        # 2. ODDIY MATNLI SUHBAT
-        elif current_image is None:
+        # 2. RASM TAHLILI (VISION REJIMI)
+        elif current_image is not None:
+            with st.spinner("🖼️ Rasm tahlil qilinmoqda..."):
+                response = ai.vision_chat(
+                    image=current_image,
+                    user_prompt=prompt,
+                    context=st.session_state.document_text,
+                    web_search=web_context
+                )
+            placeholder.markdown(response)
+
+        # 3. ODDIY MATNLI CHAT
+        else:
             with st.spinner("🤖 EduMindAI javob tayyorlamoqda..."):
                 for chunk in ai.stream_chat(
                     user_prompt=prompt,
@@ -201,17 +204,6 @@ if prompt:
                     if chunk is not None:
                         response += str(chunk)
                         placeholder.markdown(response + "▌")
-            placeholder.markdown(response)
-
-        # 3. RASM TAHLILI (VISION)
-        else:
-            with st.spinner("🖼️ Rasm tahlil qilinmoqda..."):
-                response = ai.vision_chat(
-                    image=current_image,
-                    user_prompt=prompt,
-                    context=st.session_state.document_text,
-                    web_search=web_context
-                )
             placeholder.markdown(response)
 
         # OVOZLI O'QISH
@@ -226,4 +218,5 @@ if prompt:
         "image": None
     })
 
+    # Rasm tahlil qilib bo'lingach, session stateni tozalaymiz
     st.session_state.uploaded_image = None
