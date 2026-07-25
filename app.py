@@ -49,8 +49,8 @@ if "plan" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "uploaded_image" not in st.session_state:
-    st.session_state.uploaded_image = None
+if "active_image" not in st.session_state:
+    st.session_state.active_image = None
 
 if "document_text" not in st.session_state:
     st.session_state.document_text = ""
@@ -78,11 +78,7 @@ with st.sidebar:
     st.markdown("---")
 
     st.subheader("🤖 AI Settings")
-    ai_model = st.selectbox(
-        "AI Model",
-        ["gpt-4o", "gpt-4.1", "gpt-4", "gpt-3.5-turbo"],
-        index=0
-    )
+    ai_model = st.selectbox("AI Model", ["gpt-4o", "gpt-4.1", "gpt-4", "gpt-3.5-turbo"], index=0)
     ai.set_model(ai_model)
 
     st.markdown("---")
@@ -90,18 +86,13 @@ with st.sidebar:
     st.subheader("🌐 Features")
     enable_web = st.toggle("Internet Search", value=False)
     enable_tts = st.toggle("Voice Response", value=False)
-    enable_memory = st.toggle("Conversation Memory", value=True)
+    enable_memory = st.toggle("Conversation Memory", value=False) # Rasm chalkashmasligi uchun default False
     enable_img_gen = st.toggle("🎨 Image Generation", value=False)
 
     st.markdown("---")
 
     st.subheader("📄 Upload Document")
-    uploaded_files = st.file_uploader(
-        "PDF / TXT",
-        type=["pdf", "txt"],
-        accept_multiple_files=True
-    )
-
+    uploaded_files = st.file_uploader("PDF / TXT", type=["pdf", "txt"], accept_multiple_files=True)
     if uploaded_files:
         st.session_state.document_text = pdf_reader.read_multiple(uploaded_files)
         st.success("Documents loaded.")
@@ -109,22 +100,17 @@ with st.sidebar:
     st.markdown("---")
 
     st.subheader("🖼️ Upload Image")
-    uploaded_image_file = st.file_uploader(
-        "Image",
-        type=["png", "jpg", "jpeg"],
-        key="image_uploader"
-    )
+    uploaded_image_file = st.file_uploader("Image", type=["png", "jpg", "jpeg"], key="img_input")
 
     if uploaded_image_file is not None:
-        st.session_state.uploaded_image = vision.open(uploaded_image_file)
-        st.image(st.session_state.uploaded_image, caption="Yuklangan rasm", use_container_width=True)
-        st.success("Rasm muvaffaqiyatli yuklandi!")
+        st.session_state.active_image = vision.open(uploaded_image_file)
+        st.image(st.session_state.active_image, caption="Kiritilgan rasm", use_container_width=True)
 
     st.markdown("---")
 
     if st.button("🗑 Clear Chat", use_container_width=True):
         st.session_state.messages = []
-        st.session_state.uploaded_image = None
+        st.session_state.active_image = None
         st.session_state.document_text = ""
         st.rerun()
 
@@ -145,27 +131,25 @@ for message in st.session_state.messages:
 prompt = st.chat_input("EduMindAI Enterprise bilan suhbatni boshlang...")
 
 if prompt:
-    # Hozirgi rasm nusxasi
-    active_image = st.session_state.uploaded_image
+    current_img = st.session_state.active_image
 
-    # Foydalanuvchi xabarini saqlash
+    # User xabarini saqlash
     st.session_state.messages.append({
         "role": "user",
         "content": prompt,
-        "image": active_image
+        "image": current_img
     })
 
     with st.chat_message("user"):
-        if active_image is not None:
-            st.image(active_image, use_container_width=True)
+        if current_img is not None:
+            st.image(current_img, use_container_width=True)
         st.markdown(prompt)
 
-    # Javob tayyorlash
     with st.chat_message("assistant"):
         placeholder = st.empty()
         response = ""
 
-        # 1. RASM CHIZISH REJIMI
+        # 1. RASM YARATISH
         if enable_img_gen:
             with st.spinner("🎨 AI rasm chizmoqda..."):
                 img_url = ai.generate_image(prompt)
@@ -176,18 +160,14 @@ if prompt:
                     response = "❌ Rasm yaratishda xatolik yuz berdi."
             placeholder.markdown(response)
 
-        # 2. RASM TAHLIL QILISH (VISION)
-        elif active_image is not None:
+        # 2. RASM TAHLILI (VISION)
+        elif current_img is not None:
             with st.spinner("🖼️ AI rasmni ko'rib tahlil qilmoqda..."):
-                response = ai.vision_chat(
-                    image=active_image,
-                    user_prompt=prompt
-                )
+                response = ai.vision_chat(image=current_img, user_prompt=prompt)
             placeholder.markdown(response)
-            # Rasm javobi olingach sidebardagi rasmni tozalaymiz
-            st.session_state.uploaded_image = None
+            st.session_state.active_image = None  # Ishlatib bo'lingach tozalash
 
-        # 3. ODDIY MATN CHAT
+        # 3. ODDIY MATNLI CHAT
         else:
             web_context = ""
             if enable_web:
@@ -213,7 +193,6 @@ if prompt:
             if audio:
                 st.audio(audio)
 
-    # Javobni saqlash
     st.session_state.messages.append({
         "role": "assistant",
         "content": response,
