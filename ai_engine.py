@@ -23,7 +23,7 @@ class AIEngine:
         self.system_prompt = SYSTEM_PROMPT
 
     # =====================================================
-    # MODEL SETTINGS
+    # MODEL
     # =====================================================
 
     def set_model(self, model):
@@ -31,15 +31,6 @@ class AIEngine:
 
     def get_model(self):
         return self.model
-
-    # =====================================================
-    # IMAGE UTILS
-    # =====================================================
-
-    def image_to_base64(self, image: Image.Image):
-        buffer = io.BytesIO()
-        image.convert("RGB").save(buffer, format="JPEG")
-        return base64.b64encode(buffer.getvalue()).decode()
 
     # =====================================================
     # PROMPT BUILDER
@@ -58,12 +49,7 @@ class AIEngine:
         return prompt
 
     def build_messages(self, user_prompt, history=None, context="", web_search=""):
-        messages = [
-            {
-                "role": "system",
-                "content": self.system_prompt
-            }
-        ]
+        messages = [{"role": "system", "content": self.system_prompt}]
 
         if history:
             for item in history:
@@ -73,11 +59,7 @@ class AIEngine:
                 })
 
         prompt = self.build_prompt(user_prompt, context, web_search)
-        messages.append({
-            "role": "user",
-            "content": prompt
-        })
-
+        messages.append({"role": "user", "content": prompt})
         return messages
 
     # =====================================================
@@ -142,91 +124,65 @@ class AIEngine:
             yield f"❌ {str(e)}"
 
     # =====================================================
-    # VISION CHAT (Rasmlarni Tahlil Qilish)
+    # VISION CHAT (Ishonchli va kafolatlangan rejim)
     # =====================================================
 
-    def vision_chat(self, image, user_prompt, context="", web_search=""):
+    def vision_chat(self, image: Image.Image, user_prompt: str):
         creator_reply = self._check_creator_question(user_prompt)
         if creator_reply:
             return creator_reply
 
-        prompt = self.build_prompt(user_prompt, context, web_search)
-
-        # Rasm baytlarini olish
-        img_byte_arr = io.BytesIO()
-        image.convert("RGB").save(img_byte_arr, format='JPEG')
-        img_bytes = img_byte_arr.getvalue()
-
-        # 1-Urinish: g4f native image yuborish
         try:
+            # Rasmni JPEG baytlariga o'tkazish
+            img_byte_arr = io.BytesIO()
+            image.convert("RGB").save(img_byte_arr, format='JPEG')
+            img_bytes = img_byte_arr.getvalue()
+
+            # g4f clientiga rasmni bevosita yuklash
             response = self.client.chat.completions.create(
                 model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{
+                    "role": "user", 
+                    "content": f"{user_prompt}\n(Diqqat AI: Sizga biriktirilgan ushbu rasmni diqqat bilan tahlil qiling va savolga aniq javob bering!)"
+                }],
                 image=img_bytes
             )
             return response.choices[0].message.content
-        except Exception:
-            # 2-Urinish: Base64 orqali yuborish
+        except Exception as e:
+            # Muqobil sinov
             try:
-                image64 = self.image_to_base64(image)
+                buffer = io.BytesIO()
+                image.convert("RGB").save(buffer, format="JPEG")
+                img_str = base64.b64encode(buffer.getvalue()).decode()
+                
                 response = self.client.chat.completions.create(
                     model="gpt-4o-mini",
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt},
-                                {
-                                    "type": "image_url",
-                                    "image_url": {"url": f"data:image/jpeg;base64,{image64}"}
-                                }
-                            ]
-                        }
-                    ]
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": user_prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_str}"}}
+                        ]
+                    }]
                 )
                 return response.choices[0].message.content
-            except Exception as e:
-                return f"❌ Rasm tahlilida xatolik: {str(e)}"
+            except Exception as err:
+                return f"❌ Rasm tahlilida xatolik yuz berdi: {str(err)}"
 
     # =====================================================
-    # IMAGE GENERATION (Rasm Yaratish)
+    # IMAGE GENERATION
     # =====================================================
 
     def generate_image(self, prompt: str):
         try:
             response = self.client.images.generate(
-                model="dall-e-3",
+                model="flux",
                 prompt=prompt,
                 response_format="url"
             )
             return response.data[0].url
         except Exception:
-            try:
-                response = self.client.images.generate(
-                    model="flux",
-                    prompt=prompt,
-                    response_format="url"
-                )
-                return response.data[0].url
-            except Exception:
-                return None
-
-    # =====================================================
-    # AUTO CHAT
-    # =====================================================
-
-    def ask(self, prompt, image=None, context="", web_search=""):
-        if image is None:
-            return self.chat(prompt, context, web_search)
-        return self.vision_chat(image, prompt, context, web_search)
-
-    # =====================================================
-    # RESET MODEL
-    # =====================================================
-
-    def reset(self):
-        self.model = DEFAULT_MODEL
+            return None
 
 
-# SINGLETON
 ai = AIEngine()
