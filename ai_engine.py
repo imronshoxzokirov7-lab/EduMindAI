@@ -23,7 +23,7 @@ class AIEngine:
         self.system_prompt = SYSTEM_PROMPT
 
     # =====================================================
-    # MODEL
+    # MODEL SETTINGS
     # =====================================================
 
     def set_model(self, model):
@@ -142,7 +142,7 @@ class AIEngine:
             yield f"❌ {str(e)}"
 
     # =====================================================
-    # VISION CHAT
+    # VISION CHAT (Rasmlarni Tahlil Qilish)
     # =====================================================
 
     def vision_chat(self, image, user_prompt, context="", web_search=""):
@@ -151,30 +151,45 @@ class AIEngine:
             return creator_reply
 
         prompt = self.build_prompt(user_prompt, context, web_search)
-        image64 = self.image_to_base64(image)
 
+        # Rasm baytlarini olish
+        img_byte_arr = io.BytesIO()
+        image.convert("RGB").save(img_byte_arr, format='JPEG')
+        img_bytes = img_byte_arr.getvalue()
+
+        # 1-Urinish: g4f native image yuborish
         try:
             response = self.client.chat.completions.create(
                 model="gpt-4o",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{image64}"}
-                            }
-                        ]
-                    }
-                ]
+                messages=[{"role": "user", "content": prompt}],
+                image=img_bytes
             )
             return response.choices[0].message.content
-        except Exception as e:
-            return f"❌ Vision xatosi:\n\n{str(e)}"
+        except Exception:
+            # 2-Urinish: Base64 orqali yuborish
+            try:
+                image64 = self.image_to_base64(image)
+                response = self.client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:image/jpeg;base64,{image64}"}
+                                }
+                            ]
+                        }
+                    ]
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                return f"❌ Rasm tahlilida xatolik: {str(e)}"
 
     # =====================================================
-    # IMAGE GENERATION
+    # IMAGE GENERATION (Rasm Yaratish)
     # =====================================================
 
     def generate_image(self, prompt: str):
@@ -213,8 +228,5 @@ class AIEngine:
         self.model = DEFAULT_MODEL
 
 
-# =====================================================
-# SINGLETON INSTANCE
-# =====================================================
-
+# SINGLETON
 ai = AIEngine()
