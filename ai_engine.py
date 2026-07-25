@@ -76,30 +76,19 @@ class AIEngine:
             return creator_reply
 
         try:
-            # Rasmni JPEG formatida saqlash
             img_byte_arr = io.BytesIO()
             image.convert("RGB").save(img_byte_arr, format='JPEG')
             img_bytes = img_byte_arr.getvalue()
 
-            # g4f gpt-4o vision orqali tahlil qilish
+            # Ishonchli va avtomatik provayder tanlovidan foydalanamiz
             response = g4f.ChatCompletion.create(
                 model=g4f.models.gpt_4o,
-                provider=g4f.Provider.Bing,
                 messages=[{"role": "user", "content": f"{user_prompt}\n(Ushbu rasmni tahlil qil va savolga javob ber)"}],
                 image=img_bytes
             )
             return response
-        except Exception:
-            try:
-                # Muqobil Provayder (Pollinations / Gemini)
-                response = g4f.ChatCompletion.create(
-                    model="gemini",
-                    messages=[{"role": "user", "content": f"{user_prompt}"}],
-                    image=img_byte_arr.getvalue()
-                )
-                return response
-            except Exception as e:
-                return "❌ Hozirda bepul rasm tahlil serverlarida bandlik yuqori. Birozdan so'ng qayta urinib ko'ring yoki rasmni qayta yuklang."
+        except Exception as e:
+            return f"❌ Rasmni tahlil qilishda xatolik yuz berdi. Iltimos qayta urinib ko'ring: {str(e)}"
 
     # =====================================================
     # IMAGE GENERATION
