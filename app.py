@@ -86,7 +86,7 @@ with st.sidebar:
     st.subheader("🌐 Features")
     enable_web = st.toggle("Internet Search", value=False)
     enable_tts = st.toggle("Voice Response", value=False)
-    enable_memory = st.toggle("Conversation Memory", value=False) # Rasm chalkashmasligi uchun default False
+    enable_memory = st.toggle("Conversation Memory", value=False)
     enable_img_gen = st.toggle("🎨 Image Generation", value=False)
 
     st.markdown("---")
@@ -133,7 +133,6 @@ prompt = st.chat_input("EduMindAI Enterprise bilan suhbatni boshlang...")
 if prompt:
     current_img = st.session_state.active_image
 
-    # User xabarini saqlash
     st.session_state.messages.append({
         "role": "user",
         "content": prompt,
@@ -165,7 +164,7 @@ if prompt:
             with st.spinner("🖼️ AI rasmni ko'rib tahlil qilmoqda..."):
                 response = ai.vision_chat(image=current_img, user_prompt=prompt)
             placeholder.markdown(response)
-            st.session_state.active_image = None  # Ishlatib bo'lingach tozalash
+            st.session_state.active_image = None
 
         # 3. ODDIY MATNLI CHAT
         else:
