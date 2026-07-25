@@ -7,25 +7,19 @@ AI Engine
 
 import base64
 import io
+import g4f
 from PIL import Image
-from g4f.client import Client
 from config import DEFAULT_MODEL, SYSTEM_PROMPT
 
 
 class AIEngine:
 
     def __init__(self):
-        self.client = Client()
         self.model = DEFAULT_MODEL
         self.system_prompt = SYSTEM_PROMPT
 
     def set_model(self, model):
         self.model = model
-
-    def image_to_base64(self, image: Image.Image):
-        buffer = io.BytesIO()
-        image.convert("RGB").save(buffer, format="JPEG")
-        return base64.b64encode(buffer.getvalue()).decode()
 
     def build_prompt(self, user_prompt, context="", web_search=""):
         prompt = self.system_prompt
@@ -44,7 +38,7 @@ class AIEngine:
         return None
 
     # =====================================================
-    # TEXT STREAM CHAT
+    # TEXT CHAT
     # =====================================================
 
     def stream_chat(self, user_prompt, history=None, context="", web_search=""):
@@ -56,28 +50,24 @@ class AIEngine:
         messages = [{"role": "system", "content": self.system_prompt}]
         if history:
             for item in history:
-                # Rasmli xabarlar xotiraga xatolik bermasligi uchun faqat matn qismini olamiz
                 messages.append({"role": item["role"], "content": item["content"]})
 
         prompt = self.build_prompt(user_prompt, context, web_search)
         messages.append({"role": "user", "content": prompt})
 
         try:
-            stream = self.client.chat.completions.create(
-                model=self.model,
+            response = g4f.ChatCompletion.create(
+                model=g4f.models.gpt_4o,
                 messages=messages,
                 stream=True
             )
-            for chunk in stream:
-                if hasattr(chunk.choices[0], "delta"):
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, "content") and delta.content:
-                        yield delta.content
+            for chunk in response:
+                yield chunk
         except Exception as e:
-            yield f"❌ AI xatosi: {str(e)}"
+            yield f"❌ Xatolik yuz berdi: {str(e)}"
 
     # =====================================================
-    # VISION CHAT (RASM TAHLILI)
+    # VISION CHAT (Rasmlarni Tahlil Qilish)
     # =====================================================
 
     def vision_chat(self, image: Image.Image, user_prompt: str):
@@ -86,38 +76,30 @@ class AIEngine:
             return creator_reply
 
         try:
-            # Rasmni base64 formatiga o'tkazish
-            img_b64 = self.image_to_base64(image)
-            image_data_url = f"data:image/jpeg;base64,{img_b64}"
+            # Rasmni JPEG formatida saqlash
+            img_byte_arr = io.BytesIO()
+            image.convert("RGB").save(img_byte_arr, format='JPEG')
+            img_bytes = img_byte_arr.getvalue()
 
-            # Openai / g4f vision formatida yuborish
-            response = self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": f"Ushbu rasmni diqqat bilan ko'rib chiqib savolga javob ber: {user_prompt}"},
-                            {"type": "image_url", "image_url": {"url": image_data_url}}
-                        ]
-                    }
-                ]
+            # g4f gpt-4o vision orqali tahlil qilish
+            response = g4f.ChatCompletion.create(
+                model=g4f.models.gpt_4o,
+                provider=g4f.Provider.Bing,
+                messages=[{"role": "user", "content": f"{user_prompt}\n(Ushbu rasmni tahlil qil va savolga javob ber)"}],
+                image=img_bytes
             )
-            return response.choices[0].message.content
+            return response
         except Exception:
             try:
-                # Zaxira provider
-                img_byte_arr = io.BytesIO()
-                image.convert("RGB").save(img_byte_arr, format='JPEG')
-                
-                response = self.client.chat.completions.create(
-                    model="gemini-flash",
-                    messages=[{"role": "user", "content": user_prompt}],
+                # Muqobil Provayder (Pollinations / Gemini)
+                response = g4f.ChatCompletion.create(
+                    model="gemini",
+                    messages=[{"role": "user", "content": f"{user_prompt}"}],
                     image=img_byte_arr.getvalue()
                 )
-                return response.choices[0].message.content
-            except Exception as err:
-                return f"❌ Rasmni tahlil qilib bo'lmadi. Qaytadan yuklab ko'ring: {str(err)}"
+                return response
+            except Exception as e:
+                return "❌ Hozirda bepul rasm tahlil serverlarida bandlik yuqori. Birozdan so'ng qayta urinib ko'ring yoki rasmni qayta yuklang."
 
     # =====================================================
     # IMAGE GENERATION
@@ -125,12 +107,11 @@ class AIEngine:
 
     def generate_image(self, prompt: str):
         try:
-            response = self.client.images.generate(
+            response = g4f.ChatCompletion.create(
                 model="flux",
-                prompt=prompt,
-                response_format="url"
+                messages=[{"role": "user", "content": prompt}]
             )
-            return response.data[0].url
+            return response
         except Exception:
             return None
 
