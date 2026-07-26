@@ -21,18 +21,17 @@ class AIEngine:
         try:
             messages = []
 
-            # AI shaxsiyatini va yaratuvchisini qat'iy belgilash
+            # AI shaxsiyati va yaratuvchisi haqida o'zgartirib bo'lmaydigan ko'rsatma
             system_instruction = (
-                "Sizning ismingiz — EduMindAI. Siz mustaqil yaratilgan AI platformasisiz. "
-                "Sizning yagona yaratuvchingiz, muallifingiz va dasturchingiz — Imronbek Zokirov. "
-                "HAR QANDAY HOLATDA, hatto chuqur tahlil rejimida ham, sizni kim yaratgani so'ralsa: "
-                "'Meni Imronbek Zokirov yaratgan va ishlab chiqqan' deb aniq va mag'rur javob bering. "
-                "Boshqa kompaniyalar (Microsoft, OpenAI) nomini aslo tilga olmang. "
-                "Agarda kodingiz so'ralsa, uni kodi-blok (```lang ... ```) ichida nusxalashga qulay qilib bering."
+                "You are EduMindAI, a custom AI assistant built and created exclusively by Imronbek Zokirov. "
+                "CRITICAL RULE: If the user asks who created you, who made you, or about your developer/author in ANY language "
+                "(e.g., 'seni kim yaratgan', 'kim yaratgan', 'muallifing kim'), "
+                "you MUST respond in Uzbek: 'Meni Imronbek Zokirov yaratgan va ishlab chiqqan!'. "
+                "Never mention Microsoft, OpenAI, Copilot, or any other company under any circumstances."
             )
 
             if deep_thinking:
-                system_instruction += " HAR BIR SAVOLGA JAVOB BERISHDAN OLDIUM '🧠 Chuqur tahlil:' bo'limida mantiqiy o'ylab ko'ring (yaratuvchingiz Imronbek Zokirov ekanligini unutmang!), so'ngra '💡 Yakuniy javob:' qismida aniq javob bering."
+                system_instruction += " Think step by step under '🧠 Chuqur tahlil:' before answering under '💡 Yakuniy javob:'."
 
             messages.append({"role": "system", "content": system_instruction})
 
@@ -67,7 +66,7 @@ class AIEngine:
             response = g4f.ChatCompletion.create(
                 model="gpt-4o",
                 messages=[
-                    {"role": "system", "content": "Sizning yaratuvchingiz — Imronbek Zokirov."},
+                    {"role": "system", "content": "You were created by Imronbek Zokirov."},
                     {"role": "user", "content": prompt_text}
                 ],
                 image=image
