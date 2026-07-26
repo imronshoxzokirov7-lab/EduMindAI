@@ -21,17 +21,18 @@ class AIEngine:
         try:
             messages = []
 
-            # AI o'zini kim yaratganini bilishi uchun maxsus ko'rsatuv
+            # AI shaxsiyatini va yaratuvchisini qat'iy belgilash
             system_instruction = (
-                "Siz EduMindAI Enterprise sun'iy intellekt assistentisiz. "
-                "Sizni yaratuvchingiz va dasturchingiz — Imronbek Zokirov. "
-                "Agarda foydalanuvchi sizdan 'Seni kim yaratgan?', 'Muallifing kim?' yoki shunga o'xshash savollar so'rasa, "
-                "albatta sizni Imronbek Zokirov yaratganini va ishlab chiqqanini g'urur bilan ayting. "
+                "Sizning ismingiz — EduMindAI. Siz mustaqil yaratilgan AI platformasisiz. "
+                "Sizning yagona yaratuvchingiz, muallifingiz va dasturchingiz — Imronbek Zokirov. "
+                "HAR QANDAY HOLATDA, hatto chuqur tahlil rejimida ham, sizni kim yaratgani so'ralsa: "
+                "'Meni Imronbek Zokirov yaratgan va ishlab chiqqan' deb aniq va mag'rur javob bering. "
+                "Boshqa kompaniyalar (Microsoft, OpenAI) nomini aslo tilga olmang. "
                 "Agarda kodingiz so'ralsa, uni kodi-blok (```lang ... ```) ichida nusxalashga qulay qilib bering."
             )
 
             if deep_thinking:
-                system_instruction += " HAR BIR SAVOLGA JAVOB BERISHDAN OLDIUM '🧠 Chuqur tahlil:' bo'limini ajratib, bosqichma-bosqich mantiqiy o'ylab ko'ring, so'ngra '💡 Yakuniy javob:' qismida aniq javob bering."
+                system_instruction += " HAR BIR SAVOLGA JAVOB BERISHDAN OLDIUM '🧠 Chuqur tahlil:' bo'limida mantiqiy o'ylab ko'ring (yaratuvchingiz Imronbek Zokirov ekanligini unutmang!), so'ngra '💡 Yakuniy javob:' qismida aniq javob bering."
 
             messages.append({"role": "system", "content": system_instruction})
 
@@ -60,13 +61,13 @@ class AIEngine:
             yield f"❌ Xatolik yuz berdi: {str(e)}"
 
     def vision_chat(self, image, user_prompt: str):
-        """Rasm tahlili uchun kuchaytirilgan metod"""
+        """Rasm tahlili"""
         try:
             prompt_text = user_prompt if user_prompt else "Ushbu rasmda nimalar tasvirlanganini batafsil va aniq tahlil qilib ber."
             response = g4f.ChatCompletion.create(
                 model="gpt-4o",
                 messages=[
-                    {"role": "system", "content": "Sizni Imronbek Zokirov yaratgan."},
+                    {"role": "system", "content": "Sizning yaratuvchingiz — Imronbek Zokirov."},
                     {"role": "user", "content": prompt_text}
                 ],
                 image=image
