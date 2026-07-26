@@ -92,6 +92,38 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # ======================================================
+    # EXPORT CHAT (Yangi integratsiya qilingan qism)
+    # ======================================================
+    st.subheader("📥 Export Chat")
+    if st.session_state.messages:
+        # Word formatida yuklab olish
+        docx_data = exporter.to_docx(st.session_state.messages)
+        st.download_button(
+            label="📄 Word (.docx)",
+            data=docx_data,
+            file_name="edumind_chat.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True
+        )
+
+        # PDF formatida yuklab olish
+        try:
+            pdf_data = exporter.to_pdf(st.session_state.messages)
+            st.download_button(
+                label="📕 PDF (.pdf)",
+                data=bytes(pdf_data),
+                file_name="edumind_chat.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        except Exception:
+            pass
+    else:
+        st.caption("Chatda xabarlar yo'q.")
+
+    st.markdown("---")
+
     st.subheader("📄 Upload Document")
     uploaded_files = st.file_uploader("PDF / TXT", type=["pdf", "txt"], accept_multiple_files=True)
     if uploaded_files:
