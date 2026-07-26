@@ -20,6 +20,7 @@ from style import style
 from export_utils import exporter
 from data_analyzer import analyzer
 from url_scraper import scraper
+from prompt_templates import templates
 
 style.load()
 
@@ -65,12 +66,15 @@ if "data_summary" not in st.session_state:
 if "url_text" not in st.session_state:
     st.session_state.url_text = ""
 
+if "prefilled_prompt" not in st.session_state:
+    st.session_state.prefilled_prompt = ""
+
 # ==========================================================
 # TITLE
 # ==========================================================
 
 st.title("🧠 EduMindAI Enterprise")
-st.caption("AI Chat • Vision • Image Generation • PDF • Excel/CSV • Web Scraper • Voice Assistant")
+st.caption("AI Chat • Vision • Image Generation • PDF • Excel/CSV • Web Scraper • Deep Reasoning • Voice Assistant")
 st.divider()
 
 # ==========================================================
@@ -98,10 +102,19 @@ with st.sidebar:
     enable_tts = st.toggle("Voice Response", value=False)
     enable_memory = st.toggle("Conversation Memory", value=False)
     enable_img_gen = st.toggle("🎨 Image Generation", value=False)
+    enable_deep_think = st.toggle("🧠 Deep Thinking Mode", value=False)
 
     st.markdown("---")
 
-    # 🔗 URL SCRAPER (YANGI)
+    # 🔤 PROMPT TEMPLATES (YANGI)
+    template_prefix = templates.render_templates()
+    if template_prefix:
+        st.session_state.prefilled_prompt = template_prefix
+        st.success("Shablon tanlandi! Endi matningizni chatga yozing.")
+
+    st.markdown("---")
+
+    # 🔗 URL SCRAPER
     st.subheader("🔗 Web Page / Link Analyzer")
     web_url = st.text_input("Veb-sayt havolasini kiriting (https://...)")
     if web_url:
@@ -185,6 +198,7 @@ with st.sidebar:
         st.session_state.document_text = ""
         st.session_state.data_summary = ""
         st.session_state.url_text = ""
+        st.session_state.prefilled_prompt = ""
         st.rerun()
 
 # ==========================================================
@@ -209,6 +223,11 @@ if audio_record and 'bytes' in audio_record:
     prompt = "Ovozli xabar qabul qilindi. Ushbu xabarga mos javob ber."
 
 if prompt:
+    # Shablon prefiksi bo'lsa, prompt boshiga qo'shish
+    if st.session_state.prefilled_prompt:
+        prompt = st.session_state.prefilled_prompt + prompt
+        st.session_state.prefilled_prompt = ""  # Bir marta ishlatib tozalash
+
     current_img = st.session_state.active_image
 
     st.session_state.messages.append({
@@ -263,7 +282,8 @@ if prompt:
                     user_prompt=prompt,
                     history=history,
                     context=full_context,
-                    web_search=web_context
+                    web_search=web_context,
+                    deep_thinking=enable_deep_think
                 ):
                     if chunk is not None:
                         response += str(chunk)
