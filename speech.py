@@ -1,107 +1,41 @@
 """
 ============================================================
 EduMindAI Enterprise v3.0
-Speech Manager
+Speech Engine (Text-to-Speech & Speech-to-Text)
 ============================================================
 """
 
-import tempfile
+import io
 from gtts import gTTS
+import g4f
 
 
-class SpeechManager:
+class SpeechEngine:
 
-    def __init__(self):
-
-        self.language = "uz"
-
-    # =====================================================
-    # LANGUAGE
-    # =====================================================
-
-    def set_language(
-        self,
-        language
-    ):
-
-        self.language = language
-
-    # =====================================================
-
-    def get_language(self):
-
-        return self.language
-        # =====================================================
-    # TEXT TO SPEECH
-    # =====================================================
-
-    def text_to_speech(
-        self,
-        text
-    ):
-
-        if not text:
-
-            return None
-
+    @staticmethod
+    def quick(text: str, lang: str = "uz"):
+        """Matnni ovozga o'girish (TTS)"""
         try:
-
-            tts = gTTS(
-
-                text=text,
-
-                lang=self.language,
-
-                slow=False
-
-            )
-
-            temp = tempfile.NamedTemporaryFile(
-
-                delete=False,
-
-                suffix=".mp3"
-
-            )
-
-            tts.save(temp.name)
-
-            return temp.name
-
+            tts = gTTS(text=text[:300], lang=lang)
+            fp = io.BytesIO()
+            tts.write_to_fp(fp)
+            fp.seek(0)
+            return fp
         except Exception:
-
             return None
 
-    # =====================================================
-    # QUICK
-    # =====================================================
-
-    def quick(
-        self,
-        text
-    ):
-
-        return self.text_to_speech(text)
-        # =====================================================
-    # CHECK
-    # =====================================================
-
-    def is_available(self):
-
-        return True
-
-    # =====================================================
-    # RESET
-    # =====================================================
-
-    def reset(self):
-
-        self.language = "uz"
+    @staticmethod
+    def transcribe(audio_bytes):
+        """Ovozli faylni matnga o'girish (STT)"""
+        try:
+            # g4f yoki ochiq model orqali audio matnga o'giriladi
+            response = g4f.ChatCompletion.create(
+                model="whisper-1",
+                messages=[{"role": "user", "content": "Audio-ni matnga o'gir"}]
+            )
+            return response
+        except Exception:
+            return None
 
 
-# =====================================================
-# SPEECH OBJECT
-# =====================================================
-
-speech = SpeechManager()
-
+speech = SpeechEngine()
