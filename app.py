@@ -104,7 +104,6 @@ with st.sidebar:
     enable_img_gen = st.toggle("🎨 Image Generation", value=False)
     enable_deep_think = st.toggle("🧠 Deep Thinking Mode", value=False)
 
-    # 🎨 RASM SOZLAMALARI (YANGI)
     img_style = "Realistic"
     img_aspect = "1:1"
     if enable_img_gen:
@@ -115,7 +114,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 🔤 PROMPT TEMPLATES
     template_prefix = templates.render_templates()
     if template_prefix:
         st.session_state.prefilled_prompt = template_prefix
@@ -196,8 +194,8 @@ with st.sidebar:
     uploaded_image_file = st.file_uploader("Image", type=["png", "jpg", "jpeg"], key="img_input")
 
     if uploaded_image_file is not None:
-        st.session_state.active_image = vision.open(uploaded_image_file)
-        st.image(st.session_state.active_image, caption="Kiritilgan rasm", use_container_width=True)
+        st.session_state.active_image = uploaded_image_file
+        st.image(uploaded_image_file, caption="Kiritilgan rasm", use_container_width=True)
 
     st.markdown("---")
 
@@ -253,7 +251,7 @@ if prompt:
         placeholder = st.empty()
         response = ""
 
-        # 1. RASM YARATISH (SOZLAMALAR BILAN)
+        # 1. RASM YARATISH
         if enable_img_gen:
             with st.spinner("🎨 AI rasm chizmoqda..."):
                 img_url = ai.generate_image(prompt, style=img_style, aspect_ratio=img_aspect)
@@ -264,14 +262,14 @@ if prompt:
                     response = "❌ Rasm yaratishda xatolik yuz berdi."
             placeholder.markdown(response)
 
-        # 2. RASM TAHLILI (VISION)
+        # 2. RASM TAHLILI (VISION - TO'G'RILANDI)
         elif current_img is not None:
             with st.spinner("🖼️ AI rasmni ko'rib tahlil qilmoqda..."):
                 response = ai.vision_chat(image=current_img, user_prompt=prompt)
             placeholder.markdown(response)
             st.session_state.active_image = None
 
-        # 3. ODDIY MATNLI / DATA / URL TAHLIL CHATI
+        # 3. MATNLI CHAT
         else:
             web_context = ""
             if enable_web:
@@ -298,7 +296,6 @@ if prompt:
                         placeholder.markdown(response + "▌")
             placeholder.markdown(response)
 
-        # OVOZLI JAVOB (TTS)
         if enable_tts and not enable_img_gen:
             audio = speech.quick(response)
             if audio:
