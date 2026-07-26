@@ -21,8 +21,12 @@ class AIEngine:
         try:
             messages = []
 
+            # AI o'zini kim yaratganini bilishi uchun maxsus ko'rsatuv
             system_instruction = (
-                "Siz aqlli va yordamchi EduMindAI assistentisiz. "
+                "Siz EduMindAI Enterprise sun'iy intellekt assistentisiz. "
+                "Sizni yaratuvchingiz va dasturchingiz — Imronbek Zokirov. "
+                "Agarda foydalanuvchi sizdan 'Seni kim yaratgan?', 'Muallifing kim?' yoki shunga o'xshash savollar so'rasa, "
+                "albatta sizni Imronbek Zokirov yaratganini va ishlab chiqqanini g'urur bilan ayting. "
                 "Agarda kodingiz so'ralsa, uni kodi-blok (```lang ... ```) ichida nusxalashga qulay qilib bering."
             )
 
@@ -61,7 +65,10 @@ class AIEngine:
             prompt_text = user_prompt if user_prompt else "Ushbu rasmda nimalar tasvirlanganini batafsil va aniq tahlil qilib ber."
             response = g4f.ChatCompletion.create(
                 model="gpt-4o",
-                messages=[{"role": "user", "content": prompt_text}],
+                messages=[
+                    {"role": "system", "content": "Sizni Imronbek Zokirov yaratgan."},
+                    {"role": "user", "content": prompt_text}
+                ],
                 image=image
             )
             return response
