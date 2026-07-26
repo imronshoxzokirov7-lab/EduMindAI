@@ -224,8 +224,10 @@ for message in st.session_state.messages:
 
 text_prompt = st.chat_input("EduMindAI Enterprise bilan suhbatni boshlang...")
 
-prompt = text_prompt
-if audio_record and 'bytes' in audio_record:
+prompt = None
+if text_prompt:
+    prompt = text_prompt
+elif audio_record and 'bytes' in audio_record:
     st.audio(audio_record['bytes'], format='audio/wav')
     prompt = "Ovozli xabar qabul qilindi. Ushbu xabarga mos javob ber."
 
