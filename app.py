@@ -19,6 +19,7 @@ from pdf_reader import pdf_reader
 from style import style
 from export_utils import exporter
 from data_analyzer import analyzer
+from url_scraper import scraper
 
 style.load()
 
@@ -61,12 +62,15 @@ if "document_text" not in st.session_state:
 if "data_summary" not in st.session_state:
     st.session_state.data_summary = ""
 
+if "url_text" not in st.session_state:
+    st.session_state.url_text = ""
+
 # ==========================================================
 # TITLE
 # ==========================================================
 
 st.title("🧠 EduMindAI Enterprise")
-st.caption("AI Chat • Vision • Image Generation • PDF • Excel/CSV • Voice Input & Output")
+st.caption("AI Chat • Vision • Image Generation • PDF • Excel/CSV • Web Scraper • Voice Assistant")
 st.divider()
 
 # ==========================================================
@@ -97,7 +101,18 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # OVOZLI KIRITISH (YANGI)
+    # 🔗 URL SCRAPER (YANGI)
+    st.subheader("🔗 Web Page / Link Analyzer")
+    web_url = st.text_input("Veb-sayt havolasini kiriting (https://...)")
+    if web_url:
+        with st.spinner("🔗 Sayt ma'lumotlari o'qilmoqda..."):
+            st.session_state.url_text = scraper.scrape_url(web_url)
+            if st.session_state.url_text:
+                st.success("Veb-sayt matni muvaffaqiyatli yuklandi!")
+
+    st.markdown("---")
+
+    # 🎙️ VOICE INPUT
     st.subheader("🎙️ Voice Input")
     audio_record = mic_recorder(
         start_prompt="🔴 Ovoz yozishni boshlash",
@@ -107,7 +122,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # EXPORT CHAT
+    # 📥 EXPORT CHAT
     st.subheader("📥 Export Chat")
     if st.session_state.messages:
         docx_data = exporter.to_docx(st.session_state.messages)
@@ -135,7 +150,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # DOCUMENT UPLOAD
+    # 📄 DOCUMENT UPLOAD
     st.subheader("📄 Upload Document")
     uploaded_files = st.file_uploader("PDF / TXT", type=["pdf", "txt"], accept_multiple_files=True)
     if uploaded_files:
@@ -144,7 +159,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # EXCEL / CSV UPLOAD
+    # 📊 EXCEL / CSV UPLOAD
     st.subheader("📊 Upload Data (Excel/CSV)")
     data_file = st.file_uploader("Excel / CSV fayl", type=["csv", "xlsx", "xls"])
     if data_file:
@@ -154,7 +169,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # IMAGE UPLOAD
+    # 🖼️ IMAGE UPLOAD
     st.subheader("🖼️ Upload Image")
     uploaded_image_file = st.file_uploader("Image", type=["png", "jpg", "jpeg"], key="img_input")
 
@@ -169,6 +184,7 @@ with st.sidebar:
         st.session_state.active_image = None
         st.session_state.document_text = ""
         st.session_state.data_summary = ""
+        st.session_state.url_text = ""
         st.rerun()
 
 # ==========================================================
@@ -187,11 +203,9 @@ for message in st.session_state.messages:
 
 text_prompt = st.chat_input("EduMindAI Enterprise bilan suhbatni boshlang...")
 
-# Ovoz yozilgan bo'lsa, uni ishlatish
 prompt = text_prompt
 if audio_record and 'bytes' in audio_record:
     st.audio(audio_record['bytes'], format='audio/wav')
-    # Ovozli buyruqni chatga yo'naltirish
     prompt = "Ovozli xabar qabul qilindi. Ushbu xabarga mos javob ber."
 
 if prompt:
@@ -230,7 +244,7 @@ if prompt:
             placeholder.markdown(response)
             st.session_state.active_image = None
 
-        # 3. ODDIY MATNLI / DATA TAHLIL CHATI
+        # 3. ODDIY MATNLI / DATA / URL TAHLIL CHATI
         else:
             web_context = ""
             if enable_web:
@@ -240,6 +254,8 @@ if prompt:
             full_context = st.session_state.document_text
             if st.session_state.data_summary:
                 full_context += f"\n\n[EXCEL/CSV DATA SUMMARY]:\n{st.session_state.data_summary}"
+            if st.session_state.url_text:
+                full_context += f"\n\n[WEBPAGE URL CONTENT]:\n{st.session_state.url_text}"
 
             with st.spinner("🤖 EduMindAI javob bermoqda..."):
                 history = st.session_state.messages if enable_memory else None
