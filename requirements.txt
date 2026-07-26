@@ -9,3 +9,6 @@ bcrypt
 PyMuPDF==1.26.3
 fpdf2
 python-docx
+pandas
+openpyxl
+plotly
