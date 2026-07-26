@@ -1,40 +1,36 @@
 """
 ============================================================
 EduMindAI Enterprise v3.0
-Speech / TTS Engine (gTTS)
+Speech / TTS Engine (Microsoft Edge Uzbek Voice)
 ============================================================
 """
 
-import io
-from gtts import gTTS
-import streamlit as st
+import asyncio
+import edge_tts
 
 
 class SpeechEngine:
 
     @staticmethod
-    def quick(text: str, lang: str = "uz"):
-        """Matnni ovozga aylantirib, audio bytes qaytarish"""
+    def quick(text: str, voice: str = "uz-UZ-MadinaNeural"):
+        """Matnni O'zbekcha tabiiy ovozga aylantirish"""
         try:
-            # Agar matn juda uzun bo'lsa, birinchi 300 ta belgisini o'qiydi (tezroq ishlashi uchun)
+            # Matn juda uzun bo'lsa, tez ishlashi uchun birinchi 300 belgisini o'qiydi
             short_text = text[:300] if len(text) > 300 else text
-            
-            # gTTS yordamida audio yaratish
-            tts = gTTS(text=short_text, lang=lang, slow=False)
-            fp = io.BytesIO()
-            tts.write_to_fp(fp)
-            fp.seek(0)
-            return fp.read()
+
+            async def _generate_audio():
+                communicate = edge_tts.Communicate(short_text, voice)
+                audio_data = b""
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        audio_data += chunk["data"]
+                return audio_data
+
+            # Asyncio orqali audio yaratish
+            return asyncio.run(_generate_audio())
+
         except Exception as e:
-            # O'zbek tili qo'llab-quvvatlanmasa, ingliz tilida sinab ko'radi
-            try:
-                tts = gTTS(text=short_text, lang="en", slow=False)
-                fp = io.BytesIO()
-                tts.write_to_fp(fp)
-                fp.seek(0)
-                return fp.read()
-            except Exception:
-                return None
+            return None
 
 
 speech = SpeechEngine()
