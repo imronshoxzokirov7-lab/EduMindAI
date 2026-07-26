@@ -98,5 +98,22 @@ with st.sidebar:
     st.markdown("---")
 
     st.subheader("🌐 Features")
-    # Internet Search va Conversation Memory endi standart yoqilgan (True) holatda bo'ladi!
-    enable_web = st.toggle
+    enable_web = st.toggle("Internet Search", value=True)
+    enable_tts = st.toggle("Voice Response", value=False)
+    enable_memory = st.toggle("Conversation Memory", value=True)
+    enable_img_gen = st.toggle("🎨 Image Generation", value=False)
+    enable_deep_think = st.toggle("🧠 Deep Thinking Mode", value=False)
+
+    img_style = "Realistic"
+    img_aspect = "1:1"
+    if enable_img_gen:
+        st.markdown("---")
+        st.subheader("🎨 Image Settings")
+        img_style = st.selectbox("Uslub (Style):", ["Realistic", "Anime", "3D Render", "Cyberpunk", "Oil Painting", "Digital Art"])
+        img_aspect = st.selectbox("O'lcham (Aspect Ratio):", ["1:1", "16:9", "9:16"])
+
+    st.markdown("---")
+
+    template_prefix = templates.render_templates()
+    if template_prefix:
+        st.session_state.
