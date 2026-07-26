@@ -1,150 +1,72 @@
 """
 ============================================================
 EduMindAI Enterprise v3.0
-AI Engine (Multi-Fallback Vision Engine - 100% Free)
+AI Core Engine
 ============================================================
 """
 
-import base64
-import io
-import requests
-from PIL import Image
-from g4f.client import Client
-from config import DEFAULT_MODEL, SYSTEM_PROMPT
+import g4f
 
 
 class AIEngine:
 
     def __init__(self):
-        self.client = Client()
-        self.model = DEFAULT_MODEL
-        self.system_prompt = SYSTEM_PROMPT
+        self.model = "gpt-4o"
 
-    def set_model(self, model):
-        self.model = model
+    def set_model(self, model_name: str):
+        self.model = model_name
 
-    def build_prompt(self, user_prompt, context="", web_search=""):
-        prompt = self.system_prompt
-        if context:
-            prompt += f"\n\nDocument Context:\n{context}"
-        if web_search:
-            prompt += f"\n\nInternet Search:\n{web_search}"
-        prompt += f"\n\nUser:\n{user_prompt}"
-        return prompt
-
-    def _check_creator_question(self, user_prompt):
-        lower_prompt = user_prompt.lower()
-        questions = ["kim yaratgan", "muallifing kim", "sizni kim yaratgan", "kimsan", "isming nima", "kim ishlab chiqqan"]
-        if any(q in lower_prompt for q in questions):
-            return "Meni **Imronbek Zokirov** yaratgan va ishlab chiqqan! Men EduMindAI Enterprise assistentiman."
-        return None
-
-    # =====================================================
-    # TEXT CHAT
-    # =====================================================
-
-    def stream_chat(self, user_prompt, history=None, context="", web_search=""):
-        creator_reply = self._check_creator_question(user_prompt)
-        if creator_reply:
-            yield creator_reply
-            return
-
-        messages = [{"role": "system", "content": self.system_prompt}]
-        if history:
-            for item in history:
-                messages.append({"role": item["role"], "content": item["content"]})
-
-        prompt = self.build_prompt(user_prompt, context, web_search)
-        messages.append({"role": "user", "content": prompt})
-
+    def stream_chat(self, user_prompt: str, history=None, context: str = "", web_search: str = "", deep_thinking: bool = False):
+        """AI bilan streaming muloqot"""
         try:
-            stream = self.client.chat.completions.create(
+            messages = []
+
+            system_instruction = "Siz aqlli va yordamchi EduMindAI assistentisiz."
+            if deep_thinking:
+                system_instruction += " HAR BIR SAVOLGA JAVOB BERISHDAN OLDIUM '🧠 Chuqur tahlil:' bo'limini ajratib, bosqichma-bosqich mantiqiy o'ylab ko'ring, so'ngra '💡 Yakuniy javob:' qismida aniq javob bering."
+
+            messages.append({"role": "system", "content": system_instruction})
+
+            if context:
+                messages.append({"role": "system", "content": f"Qo'shimcha ma'lumotlar:\n{context}"})
+
+            if web_search:
+                messages.append({"role": "system", "content": f"Internet qidiruvi:\n{web_search}"})
+
+            if history:
+                for msg in history[-6:]:
+                    messages.append({"role": msg["role"], "content": msg["content"]})
+
+            messages.append({"role": "user", "content": user_prompt})
+
+            response = g4f.ChatCompletion.create(
                 model=self.model,
                 messages=messages,
                 stream=True
             )
-            for chunk in stream:
-                if hasattr(chunk.choices[0], "delta"):
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, "content") and delta.content:
-                        yield delta.content
+
+            for chunk in response:
+                yield chunk
+
         except Exception as e:
-            yield f"❌ AI xatosi: {str(e)}"
+            yield f"❌ Xatolik yuz berdi: {str(e)}"
 
-    # =====================================================
-    # VISION CHAT (100% BEPUL VA ISHONCHLI)
-    # =====================================================
-
-    def vision_chat(self, image: Image.Image, user_prompt: str):
-        creator_reply = self._check_creator_question(user_prompt)
-        if creator_reply:
-            return creator_reply
-
-        # Rasmni tayyorlash
-        img_byte_arr = io.BytesIO()
-        image.convert("RGB").save(img_byte_arr, format='JPEG')
-        img_bytes = img_byte_arr.getvalue()
-
-        # 1-USUL: g4f AI Client orqali (gpt-4o vision)
+    def vision_chat(self, image, user_prompt: str):
+        """Rasm tahlili"""
         try:
-            response = self.client.chat.completions.create(
+            response = g4f.ChatCompletion.create(
                 model="gpt-4o",
-                messages=[{"role": "user", "content": f"{user_prompt}\n(Ushbu rasmni diqqat bilan o'rganib chiqib o'zbek tilida javob ber)"}],
-                image=img_bytes
-            )
-            if response and response.choices[0].message.content:
-                return response.choices[0].message.content
-        except Exception:
-            pass
-
-        # 2-USUL: g4f Gemini-flash
-        try:
-            response = self.client.chat.completions.create(
-                model="gemini-flash",
                 messages=[{"role": "user", "content": user_prompt}],
-                image=img_bytes
+                image=image
             )
-            if response and response.choices[0].message.content:
-                return response.choices[0].message.content
-        except Exception:
-            pass
-
-        # 3-USUL: Pollinations AI (Bepul ochiq model bilan)
-        try:
-            img_str = base64.b64encode(img_bytes).decode("utf-8")
-            base64_image = f"data:image/jpeg;base64,{img_str}"
-
-            payload = {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": f"{user_prompt} (O'zbekcha javob ber)"},
-                            {"type": "image_url", "image_url": {"url": base64_image}}
-                        ]
-                    }
-                ]
-            }
-            res = requests.post("https://text.pollinations.ai/", json=payload, headers={"Content-Type": "application/json"}, timeout=25)
-            if res.status_code == 200 and len(res.text) > 5:
-                return res.text
-        except Exception:
-            pass
-
-        return "❌ Rasmni tahlil qilishda tarmoq xatoligi yuz berdi. Iltimos, rasmni qayta yuklang va `🗑 Clear Chat` tugmasini bosib ko'ring."
-
-    # =====================================================
-    # IMAGE GENERATION
-    # =====================================================
+            return response
+        except Exception as e:
+            return f"❌ Rasm tahlilida xatolik: {str(e)}"
 
     def generate_image(self, prompt: str):
+        """Rasm yaratish"""
         try:
-            response = self.client.images.generate(
-                model="flux",
-                prompt=prompt,
-                response_format="url"
-            )
-            return response.data[0].url
+            return f"https://image.pollinations.ai/prompt/{prompt.replace(' ', '%20')}"
         except Exception:
             return None
 
