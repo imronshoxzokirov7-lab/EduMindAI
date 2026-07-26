@@ -21,12 +21,9 @@ class AIEngine:
         try:
             messages = []
 
-            # Kodlarni va umumiy javoblarni tartibli berish bo'yicha kuchaytirilgan ko'rsatma
             system_instruction = (
                 "Siz aqlli va yordamchi EduMindAI assistentisiz. "
-                "Agarda foydalanuvchi dasturlash kodi so'rasa yoki kod xatosini tuzatishni so'rasa, "
-                "kodni albatta tegishli dasturlash tili nomi ko'rsatilgan kodi-blok (```lang ... ```) ichiga oling. "
-                "Kodni aniq, toza va bir bosishda nusxalashga qulay qilib taqdim eting."
+                "Agarda kodingiz so'ralsa, uni kodi-blok (```lang ... ```) ichida nusxalashga qulay qilib bering."
             )
 
             if deep_thinking:
@@ -59,11 +56,12 @@ class AIEngine:
             yield f"❌ Xatolik yuz berdi: {str(e)}"
 
     def vision_chat(self, image, user_prompt: str):
-        """Rasm tahlili"""
+        """Rasm tahlili uchun kuchaytirilgan metod"""
         try:
+            prompt_text = user_prompt if user_prompt else "Ushbu rasmda nimalar tasvirlanganini batafsil va aniq tahlil qilib ber."
             response = g4f.ChatCompletion.create(
                 model="gpt-4o",
-                messages=[{"role": "user", "content": user_prompt}],
+                messages=[{"role": "user", "content": prompt_text}],
                 image=image
             )
             return response
