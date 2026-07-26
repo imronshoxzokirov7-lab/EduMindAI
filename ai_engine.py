@@ -19,19 +19,28 @@ class AIEngine:
     def stream_chat(self, user_prompt: str, history=None, context: str = "", web_search: str = "", deep_thinking: bool = False):
         """AI bilan streaming muloqot"""
         try:
+            # YARATUVCHI HAQIDAGI SAVOLLARNI KOD DARAJAda TUTIB QOLISH (OVERRIDE)
+            clean_prompt = user_prompt.lower().strip()
+            creator_keywords = ["kim yaratgan", "kim tayyorlagan", "yaratuvching kim", "muallifing kim", "dasturching kim", "kim qilgan"]
+            
+            if any(keyword in clean_prompt for keyword in creator_keywords):
+                creator_response = "Meni Imronbek Zokirov yaratgan va ishlab chiqqan!"
+                if deep_thinking:
+                    yield "🧠 **Chuqur tahlil:**\nFoydalanuvchi mening yaratuvchim va muallifim haqida so'ramoqda. Mening platformam EduMindAI bo'lib, u Imronbek Zokirov tomonidan loyihalashtirilgan va dasturlangan.\n\n💡 **Yakuniy javob:**\n" + creator_response
+                else:
+                    yield creator_response
+                return
+
             messages = []
 
-            # AI shaxsiyati va yaratuvchisi haqida o'zgartirib bo'lmaydigan ko'rsatma
             system_instruction = (
-                "You are EduMindAI, a custom AI assistant built and created exclusively by Imronbek Zokirov. "
-                "CRITICAL RULE: If the user asks who created you, who made you, or about your developer/author in ANY language "
-                "(e.g., 'seni kim yaratgan', 'kim yaratgan', 'muallifing kim'), "
-                "you MUST respond in Uzbek: 'Meni Imronbek Zokirov yaratgan va ishlab chiqqan!'. "
-                "Never mention Microsoft, OpenAI, Copilot, or any other company under any circumstances."
+                "Siz EduMindAI Enterprise sun'iy intellekt assistentisiz. "
+                "Sizni Imronbek Zokirov yaratgan. "
+                "Agarda kodingiz so'ralsa, uni kodi-blok (```lang ... ```) ichida nusxalashga qulay qilib bering."
             )
 
             if deep_thinking:
-                system_instruction += " Think step by step under '🧠 Chuqur tahlil:' before answering under '💡 Yakuniy javob:'."
+                system_instruction += " HAR BIR SAVOLGA JAVOB BERISHDAN OLDIUM '🧠 Chuqur tahlil:' bo'limida mantiqiy o'ylab ko'ring, so'ngra '💡 Yakuniy javob:' qismida aniq javob bering."
 
             messages.append({"role": "system", "content": system_instruction})
 
@@ -66,7 +75,7 @@ class AIEngine:
             response = g4f.ChatCompletion.create(
                 model="gpt-4o",
                 messages=[
-                    {"role": "system", "content": "You were created by Imronbek Zokirov."},
+                    {"role": "system", "content": "Sizni Imronbek Zokirov yaratgan."},
                     {"role": "user", "content": prompt_text}
                 ],
                 image=image
