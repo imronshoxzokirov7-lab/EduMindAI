@@ -16,6 +16,7 @@ from speech import speech
 from vision import vision
 from pdf_reader import pdf_reader
 from style import style
+from export_utils import exporter
 
 style.load()
 
