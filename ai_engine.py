@@ -63,10 +63,17 @@ class AIEngine:
         except Exception as e:
             return f"❌ Rasm tahlilida xatolik: {str(e)}"
 
-    def generate_image(self, prompt: str):
-        """Rasm yaratish"""
+    def generate_image(self, prompt: str, style: str = "Realistic", aspect_ratio: str = "1:1"):
+        """Sozlamalar bilan rasm yaratish"""
         try:
-            return f"https://image.pollinations.ai/prompt/{prompt.replace(' ', '%20')}"
+            # O'lchamlarni belgilash
+            dimensions = {"1:1": (1024, 1024), "16:9": (1280, 720), "9:16": (720, 1280)}
+            width, height = dimensions.get(aspect_ratio, (1024, 1024))
+            
+            # Promptga uslub qo'shish
+            full_prompt = f"{prompt}, {style} style, highly detailed, 8k"
+            
+            return f"https://image.pollinations.ai/prompt/{full_prompt.replace(' ', '%20')}?width={width}&height={height}&nologo=true"
         except Exception:
             return None
 
