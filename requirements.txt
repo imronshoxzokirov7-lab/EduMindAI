@@ -12,3 +12,4 @@ python-docx
 pandas
 openpyxl
 plotly
+streamlit-mic-recorder
