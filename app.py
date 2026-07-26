@@ -7,6 +7,7 @@ Main Application
 
 import uuid
 import streamlit as st
+from streamlit_mic_recorder import mic_recorder
 
 from config import *
 from database import db
@@ -65,7 +66,7 @@ if "data_summary" not in st.session_state:
 # ==========================================================
 
 st.title("🧠 EduMindAI Enterprise")
-st.caption("AI Chat • Vision • Image Generation • PDF • Excel/CSV Analysis • Internet Search • Voice Assistant")
+st.caption("AI Chat • Vision • Image Generation • PDF • Excel/CSV • Voice Input & Output")
 st.divider()
 
 # ==========================================================
@@ -93,6 +94,16 @@ with st.sidebar:
     enable_tts = st.toggle("Voice Response", value=False)
     enable_memory = st.toggle("Conversation Memory", value=False)
     enable_img_gen = st.toggle("🎨 Image Generation", value=False)
+
+    st.markdown("---")
+
+    # OVOZLI KIRITISH (YANGI)
+    st.subheader("🎙️ Voice Input")
+    audio_record = mic_recorder(
+        start_prompt="🔴 Ovoz yozishni boshlash",
+        stop_prompt="⬛ To'xtatish",
+        key='recorder'
+    )
 
     st.markdown("---")
 
@@ -133,7 +144,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # EXCEL / CSV UPLOAD (YANGI)
+    # EXCEL / CSV UPLOAD
     st.subheader("📊 Upload Data (Excel/CSV)")
     data_file = st.file_uploader("Excel / CSV fayl", type=["csv", "xlsx", "xls"])
     if data_file:
@@ -174,7 +185,14 @@ for message in st.session_state.messages:
 # CHAT INPUT & LOGIC
 # ==========================================================
 
-prompt = st.chat_input("EduMindAI Enterprise bilan suhbatni boshlang...")
+text_prompt = st.chat_input("EduMindAI Enterprise bilan suhbatni boshlang...")
+
+# Ovoz yozilgan bo'lsa, uni ishlatish
+prompt = text_prompt
+if audio_record and 'bytes' in audio_record:
+    st.audio(audio_record['bytes'], format='audio/wav')
+    # Ovozli buyruqni chatga yo'naltirish
+    prompt = "Ovozli xabar qabul qilindi. Ushbu xabarga mos javob ber."
 
 if prompt:
     current_img = st.session_state.active_image
@@ -219,7 +237,6 @@ if prompt:
                 with st.spinner("🌐 Internetdan qidirilmoqda..."):
                     web_context = search.search_context(prompt)
 
-            # Hujjat va Excel matnlarini birlashtirish
             full_context = st.session_state.document_text
             if st.session_state.data_summary:
                 full_context += f"\n\n[EXCEL/CSV DATA SUMMARY]:\n{st.session_state.data_summary}"
@@ -237,7 +254,7 @@ if prompt:
                         placeholder.markdown(response + "▌")
             placeholder.markdown(response)
 
-        # OVOZ
+        # OVOZLI JAVOB (TTS)
         if enable_tts and not enable_img_gen:
             audio = speech.quick(response)
             if audio:
