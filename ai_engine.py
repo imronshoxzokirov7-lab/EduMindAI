@@ -21,7 +21,14 @@ class AIEngine:
         try:
             messages = []
 
-            system_instruction = "Siz aqlli va yordamchi EduMindAI assistentisiz."
+            # Kodlarni va umumiy javoblarni tartibli berish bo'yicha kuchaytirilgan ko'rsatma
+            system_instruction = (
+                "Siz aqlli va yordamchi EduMindAI assistentisiz. "
+                "Agarda foydalanuvchi dasturlash kodi so'rasa yoki kod xatosini tuzatishni so'rasa, "
+                "kodni albatta tegishli dasturlash tili nomi ko'rsatilgan kodi-blok (```lang ... ```) ichiga oling. "
+                "Kodni aniq, toza va bir bosishda nusxalashga qulay qilib taqdim eting."
+            )
+
             if deep_thinking:
                 system_instruction += " HAR BIR SAVOLGA JAVOB BERISHDAN OLDIUM '🧠 Chuqur tahlil:' bo'limini ajratib, bosqichma-bosqich mantiqiy o'ylab ko'ring, so'ngra '💡 Yakuniy javob:' qismida aniq javob bering."
 
@@ -66,11 +73,9 @@ class AIEngine:
     def generate_image(self, prompt: str, style: str = "Realistic", aspect_ratio: str = "1:1"):
         """Sozlamalar bilan rasm yaratish"""
         try:
-            # O'lchamlarni belgilash
             dimensions = {"1:1": (1024, 1024), "16:9": (1280, 720), "9:16": (720, 1280)}
             width, height = dimensions.get(aspect_ratio, (1024, 1024))
             
-            # Promptga uslub qo'shish
             full_prompt = f"{prompt}, {style} style, highly detailed, 8k"
             
             return f"https://image.pollinations.ai/prompt/{full_prompt.replace(' ', '%20')}?width={width}&height={height}&nologo=true"
