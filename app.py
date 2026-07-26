@@ -104,9 +104,18 @@ with st.sidebar:
     enable_img_gen = st.toggle("🎨 Image Generation", value=False)
     enable_deep_think = st.toggle("🧠 Deep Thinking Mode", value=False)
 
+    # 🎨 RASM SOZLAMALARI (YANGI)
+    img_style = "Realistic"
+    img_aspect = "1:1"
+    if enable_img_gen:
+        st.markdown("---")
+        st.subheader("🎨 Image Settings")
+        img_style = st.selectbox("Uslub (Style):", ["Realistic", "Anime", "3D Render", "Cyberpunk", "Oil Painting", "Digital Art"])
+        img_aspect = st.selectbox("O'lcham (Aspect Ratio):", ["1:1", "16:9", "9:16"])
+
     st.markdown("---")
 
-    # 🔤 PROMPT TEMPLATES (YANGI)
+    # 🔤 PROMPT TEMPLATES
     template_prefix = templates.render_templates()
     if template_prefix:
         st.session_state.prefilled_prompt = template_prefix
@@ -223,10 +232,9 @@ if audio_record and 'bytes' in audio_record:
     prompt = "Ovozli xabar qabul qilindi. Ushbu xabarga mos javob ber."
 
 if prompt:
-    # Shablon prefiksi bo'lsa, prompt boshiga qo'shish
     if st.session_state.prefilled_prompt:
         prompt = st.session_state.prefilled_prompt + prompt
-        st.session_state.prefilled_prompt = ""  # Bir marta ishlatib tozalash
+        st.session_state.prefilled_prompt = ""
 
     current_img = st.session_state.active_image
 
@@ -245,13 +253,13 @@ if prompt:
         placeholder = st.empty()
         response = ""
 
-        # 1. RASM YARATISH
+        # 1. RASM YARATISH (SOZLAMALAR BILAN)
         if enable_img_gen:
             with st.spinner("🎨 AI rasm chizmoqda..."):
-                img_url = ai.generate_image(prompt)
+                img_url = ai.generate_image(prompt, style=img_style, aspect_ratio=img_aspect)
                 if img_url:
-                    st.image(img_url, caption=f"Yaratilgan rasm: {prompt}", use_container_width=True)
-                    response = f"Mana siz so'ragan rasm: {img_url}"
+                    st.image(img_url, caption=f"Yaratilgan rasm ({img_style}, {img_aspect}): {prompt}", use_container_width=True)
+                    response = f"Mana siz so'ragan rasm ({img_style} uslubida): {img_url}"
                 else:
                     response = "❌ Rasm yaratishda xatolik yuz berdi."
             placeholder.markdown(response)
