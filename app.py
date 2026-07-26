@@ -17,6 +17,7 @@ from vision import vision
 from pdf_reader import pdf_reader
 from style import style
 from export_utils import exporter
+from data_analyzer import analyzer
 
 style.load()
 
@@ -56,12 +57,15 @@ if "active_image" not in st.session_state:
 if "document_text" not in st.session_state:
     st.session_state.document_text = ""
 
+if "data_summary" not in st.session_state:
+    st.session_state.data_summary = ""
+
 # ==========================================================
 # TITLE
 # ==========================================================
 
 st.title("🧠 EduMindAI Enterprise")
-st.caption("AI Chat • Vision • Image Generation • PDF • Internet Search • Voice Assistant")
+st.caption("AI Chat • Vision • Image Generation • PDF • Excel/CSV Analysis • Internet Search • Voice Assistant")
 st.divider()
 
 # ==========================================================
@@ -92,12 +96,9 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # ======================================================
-    # EXPORT CHAT (Yangi integratsiya qilingan qism)
-    # ======================================================
+    # EXPORT CHAT
     st.subheader("📥 Export Chat")
     if st.session_state.messages:
-        # Word formatida yuklab olish
         docx_data = exporter.to_docx(st.session_state.messages)
         st.download_button(
             label="📄 Word (.docx)",
@@ -107,7 +108,6 @@ with st.sidebar:
             use_container_width=True
         )
 
-        # PDF formatida yuklab olish
         try:
             pdf_data = exporter.to_pdf(st.session_state.messages)
             st.download_button(
@@ -124,6 +124,7 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # DOCUMENT UPLOAD
     st.subheader("📄 Upload Document")
     uploaded_files = st.file_uploader("PDF / TXT", type=["pdf", "txt"], accept_multiple_files=True)
     if uploaded_files:
@@ -132,6 +133,17 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # EXCEL / CSV UPLOAD (YANGI)
+    st.subheader("📊 Upload Data (Excel/CSV)")
+    data_file = st.file_uploader("Excel / CSV fayl", type=["csv", "xlsx", "xls"])
+    if data_file:
+        df = analyzer.read_file(data_file)
+        if df is not None:
+            st.session_state.data_summary = analyzer.analyze_and_display(df)
+
+    st.markdown("---")
+
+    # IMAGE UPLOAD
     st.subheader("🖼️ Upload Image")
     uploaded_image_file = st.file_uploader("Image", type=["png", "jpg", "jpeg"], key="img_input")
 
@@ -145,6 +157,7 @@ with st.sidebar:
         st.session_state.messages = []
         st.session_state.active_image = None
         st.session_state.document_text = ""
+        st.session_state.data_summary = ""
         st.rerun()
 
 # ==========================================================
@@ -199,19 +212,24 @@ if prompt:
             placeholder.markdown(response)
             st.session_state.active_image = None
 
-        # 3. ODDIY MATNLI CHAT
+        # 3. ODDIY MATNLI / DATA TAHLIL CHATI
         else:
             web_context = ""
             if enable_web:
                 with st.spinner("🌐 Internetdan qidirilmoqda..."):
                     web_context = search.search_context(prompt)
 
+            # Hujjat va Excel matnlarini birlashtirish
+            full_context = st.session_state.document_text
+            if st.session_state.data_summary:
+                full_context += f"\n\n[EXCEL/CSV DATA SUMMARY]:\n{st.session_state.data_summary}"
+
             with st.spinner("🤖 EduMindAI javob bermoqda..."):
                 history = st.session_state.messages if enable_memory else None
                 for chunk in ai.stream_chat(
                     user_prompt=prompt,
                     history=history,
-                    context=st.session_state.document_text,
+                    context=full_context,
                     web_search=web_context
                 ):
                     if chunk is not None:
