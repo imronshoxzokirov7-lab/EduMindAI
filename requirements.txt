@@ -13,3 +13,5 @@ pandas
 openpyxl
 plotly
 streamlit-mic-recorder
+beautifulsoup4
+requests
