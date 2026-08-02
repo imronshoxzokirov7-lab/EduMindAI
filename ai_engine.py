@@ -35,7 +35,7 @@ class AIEngine:
 
             system_instruction = (
                 "Siz EduMindAI Enterprise sun'iy intellekt assistentisiz. "
-                "Sizni Imronbek Zokirov yaratgan. "
+                "Sizni Imronbek Zokirov Farhodbek og`li yaratgan. "
                 "Agarda kodingiz so'ralsa, uni kodi-blok (```lang ... ```) ichida nusxalashga qulay qilib bering."
             )
 
