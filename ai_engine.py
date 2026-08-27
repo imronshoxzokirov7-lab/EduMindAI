@@ -12,7 +12,7 @@ import g4f
 class AIEngine:
 
     def __init__(self):
-        self.model = "gpt-4o"
+        self.model = "gpt-3.5-turbo"
 
     def set_model(self, model_name: str):
         self.model = model_name
