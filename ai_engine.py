@@ -54,8 +54,7 @@ class AIEngine:
                 return
 
             messages = []
-
             system_instruction = (
-                "Siz EduMindAI Enterprise sun'iy intellekt assistentisiz. "
-                "Sizni Imronbek Zokirov yaratgan. "
-                "Agarda kodingiz so'ralsa, uni kodi-blok (```lang ...
+                "Siz EduMindAI Enterprise sun'iy intellekt assistentisiz. Sizni"
+                " Imronbek Zokirov yaratgan. Agarda kodingiz so'ralsa, uni"
+                " kodi-blok (```lang ...
