@@ -12,7 +12,6 @@ import g4f
 class AIEngine:
 
     def __init__(self):
-        # Defolt model va barqaror provayderlar
         self.model = "gpt-4o"
 
     def set_model(self, model_name: str):
@@ -28,7 +27,6 @@ class AIEngine:
     ):
         """AI bilan streaming muloqot"""
         try:
-            # YARATUVCHI HAQIDAGI SAVOLLARNI OVERRIDE QILISH
             clean_prompt = user_prompt.lower().strip()
             creator_keywords = [
                 "kim yaratgan",
