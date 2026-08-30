@@ -1,46 +1,20 @@
-"""
-============================================================
-EduMindAI Enterprise
-AI Core Engine
-============================================================
-"""
-
-import base64
-import io
-
-import g4f
-
-try:
-    from g4f.client import Client
-except ImportError:
-    Client = None
+import streamlit as st
+from openai import OpenAI
 
 
 class AIEngine:
 
     def __init__(self):
-        self.model = "gpt-3.5-turbo"
+        self.model = "gpt-4o"
 
-        if Client is not None:
-            try:
-                self.client = Client()
-            except Exception:
-                self.client = None
-        else:
+        try:
+            api_key = st.secrets["OPENAI_API_KEY"]
+            self.client = OpenAI(api_key=api_key)
+        except Exception:
             self.client = None
 
-    # ---------------------------------------------------------
-    # MODEL
-    # ---------------------------------------------------------
-
     def set_model(self, model_name: str):
-        """AI modelini o'zgartirish."""
-        if model_name:
-            self.model = model_name
-
-    # ---------------------------------------------------------
-    # TEXT CHAT
-    # ---------------------------------------------------------
+        self.model = model_name
 
     def stream_chat(
         self,
@@ -50,117 +24,74 @@ class AIEngine:
         web_search: str = "",
         deep_thinking: bool = False,
     ):
-        """AI bilan streaming muloqot."""
+        if self.client is None:
+            yield "❌ OPENAI_API_KEY topilmadi. Streamlit Secrets bo‘limini tekshiring."
+            return
 
-        try:
-            messages = []
+        system_prompt = """
+Siz EduMindAI Enterprise sun'iy intellekt assistentisiz.
+Foydalanuvchiga aniq, foydali va tushunarli javob bering.
+Foydalanuvchi qaysi tilda yozsa, shu tilda javob bering.
+Kod so‘ralsa, kodni markdown code block ichida yozing.
+"""
 
-            # SYSTEM
-            system_instruction = (
-                "Siz EduMindAI Enterprise sun'iy intellekt assistentisiz. "
-                "Foydalanuvchiga aniq, foydali va tushunarli javob bering. "
-                "Kerak bo'lsa kodlarni markdown code block ichida yozing. "
-                "Foydalanuvchi qaysi tilda so'rasa, imkon qadar shu tilda javob bering."
-            )
+        if deep_thinking:
+            system_prompt += """
+Masalani diqqat bilan tahlil qiling va yakuniy javobni
+aniq va tushunarli qilib bering.
+"""
 
-            if deep_thinking:
-                system_instruction += (
-                    " Javob berishdan oldin masalani ichki ravishda "
-                    "sinchiklab tekshiring va yakuniy javobni aniq bering."
-                )
-
-            messages.append({
+        messages = [
+            {
                 "role": "system",
-                "content": system_instruction
-            })
+                "content": system_prompt
+            }
+        ]
 
-            # HISTORY
-            if history:
-                for message in history:
-                    if not isinstance(message, dict):
-                        continue
+        if history:
+            for message in history:
+                if message.get("role") in ["user", "assistant"]:
+                    content = message.get("content", "")
 
-                    role = message.get("role")
-                    content = message.get("content")
-
-                    if role in ("user", "assistant") and content:
+                    if content:
                         messages.append({
-                            "role": role,
+                            "role": message["role"],
                             "content": str(content)
                         })
 
-            # CONTEXT
-            extra_context = ""
+        if context:
+            user_prompt += (
+                "\n\nQo‘shimcha hujjat/data:\n"
+                + str(context)
+            )
 
-            if context:
-                extra_context += (
-                    "\n\n[DOCUMENT / DATA CONTEXT]\n"
-                    + str(context)
-                )
+        if web_search:
+            user_prompt += (
+                "\n\nInternet qidiruv natijalari:\n"
+                + str(web_search)
+            )
 
-            if web_search:
-                extra_context += (
-                    "\n\n[WEB SEARCH CONTEXT]\n"
-                    + str(web_search)
-                )
+        messages.append({
+            "role": "user",
+            "content": user_prompt
+        })
 
-            final_prompt = str(user_prompt) + extra_context
-
-            messages.append({
-                "role": "user",
-                "content": final_prompt
-            })
-
-            # -------------------------------------------------
-            # G4F CLIENT API
-            # -------------------------------------------------
-
-            if self.client is not None:
-
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    stream=True
-                )
-
-                for chunk in response:
-
-                    try:
-                        content = chunk.choices[0].delta.content
-                    except Exception:
-                        content = None
-
-                    if content:
-                        yield content
-
-                return
-
-            # -------------------------------------------------
-            # OLD G4F API FALLBACK
-            # -------------------------------------------------
-
-            response = g4f.ChatCompletion.create(
+        try:
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 stream=True
             )
 
             for chunk in response:
-                if chunk:
-                    yield str(chunk)
+                if chunk.choices:
+                    content = chunk.choices[0].delta.content
+
+                    if content:
+                        yield content
 
         except Exception as e:
-
-            yield (
-                "❌ AI bilan bog'lanishda xatolik yuz berdi.\n\n"
-                f"Xatolik: `{str(e)}`\n\n"
-                "G4F o'rnatilganini va uning versiyasi ishlayotganini "
-                "tekshiring."
-            )
-
-    # ---------------------------------------------------------
-    # NORMAL CHAT
-    # ---------------------------------------------------------
+            yield f"❌ OpenAI xatosi: {str(e)}"
 
     def chat(
         self,
@@ -170,9 +101,7 @@ class AIEngine:
         web_search: str = "",
         deep_thinking: bool = False,
     ):
-        """Oddiy, to'liq javob qaytarish."""
-
-        result = ""
+        answer = ""
 
         for chunk in self.stream_chat(
             user_prompt=user_prompt,
@@ -181,13 +110,9 @@ class AIEngine:
             web_search=web_search,
             deep_thinking=deep_thinking
         ):
-            result += str(chunk)
+            answer += str(chunk)
 
-        return result
-
-    # ---------------------------------------------------------
-    # IMAGE GENERATION
-    # ---------------------------------------------------------
+        return answer
 
     def generate_image(
         self,
@@ -195,150 +120,88 @@ class AIEngine:
         style: str = "Realistic",
         aspect_ratio: str = "1:1"
     ):
-        """AI yordamida rasm yaratish."""
+        if self.client is None:
+            return None
 
         try:
-
-            if self.client is None:
-                return None
-
-            style_instruction = {
-                "Realistic": "photorealistic",
-                "Anime": "anime style",
-                "3D Render": "high quality 3D render",
-                "Cyberpunk": "cyberpunk digital art",
-                "Oil Painting": "oil painting",
-                "Digital Art": "digital art"
-            }
-
-            style_text = style_instruction.get(
-                style,
-                "high quality digital art"
-            )
-
             full_prompt = (
                 f"{prompt}. "
-                f"Style: {style_text}. "
+                f"Style: {style}. "
                 f"Aspect ratio: {aspect_ratio}. "
-                "High quality, detailed, clean composition."
+                "High quality, detailed."
             )
 
-            response = self.client.images.generate(
-                model="flux",
+            result = self.client.images.generate(
+                model="gpt-image-1",
                 prompt=full_prompt,
-                response_format="url"
+                size="1024x1024"
             )
 
-            if response and response.data:
-                return response.data[0].url
+            if result.data:
+                image_data = result.data[0].b64_json
+
+                if image_data:
+                    return f"data:image/png;base64,{image_data}"
 
             return None
 
         except Exception:
             return None
 
-    # ---------------------------------------------------------
-    # VISION
-    # ---------------------------------------------------------
+    def vision_chat(self, image, user_prompt: str):
 
-    def vision_chat(
-        self,
-        image,
-        user_prompt: str
-    ):
-        """Rasmni AI yordamida tahlil qilish."""
+        if self.client is None:
+            return "❌ OPENAI_API_KEY topilmadi."
 
         try:
-
-            if self.client is None:
-                return "❌ G4F Client topilmadi."
-
-            # UploadedFile -> bytes
             if hasattr(image, "getvalue"):
                 image_bytes = image.getvalue()
-
-            elif hasattr(image, "read"):
+            else:
                 image_bytes = image.read()
 
-            elif isinstance(image, bytes):
-                image_bytes = image
+            import base64
 
-            else:
-                return "❌ Rasm formatini o'qib bo'lmadi."
-
-            # Base64
-            encoded_image = base64.b64encode(
+            encoded = base64.b64encode(
                 image_bytes
             ).decode("utf-8")
 
-            # Default MIME
-            mime_type = "image/jpeg"
-
-            try:
-                file_name = getattr(image, "name", "")
-
-                if file_name.lower().endswith(".png"):
-                    mime_type = "image/png"
-
-                elif file_name.lower().endswith(".jpg"):
-                    mime_type = "image/jpeg"
-
-                elif file_name.lower().endswith(".jpeg"):
-                    mime_type = "image/jpeg"
-
-            except Exception:
-                pass
-
             image_url = (
-                f"data:{mime_type};base64,{encoded_image}"
+                "data:image/jpeg;base64,"
+                + encoded
             )
-
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "Siz rasm tahlil qiluvchi AI assistantsiz. "
-                        "Rasmni diqqat bilan tahlil qiling va "
-                        "foydalanuvchi savoliga aniq javob bering."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": user_prompt
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": image_url
-                            }
-                        }
-                    ]
-                }
-            ]
 
             response = self.client.chat.completions.create(
                 model="gpt-4o",
-                messages=messages
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Siz rasmni tahlil qiluvchi AI "
+                            "assistentisiz."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": user_prompt
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": image_url
+                                }
+                            }
+                        ]
+                    }
+                ]
             )
 
-            try:
-                return response.choices[0].message.content
-            except Exception:
-                return str(response)
+            return response.choices[0].message.content
 
         except Exception as e:
+            return f"❌ Rasmni tahlil qilishda xatolik: {str(e)}"
 
-            return (
-                "❌ Rasmni tahlil qilishda xatolik.\n\n"
-                f"Xatolik: `{str(e)}`"
-            )
-
-
-# =============================================================
-# GLOBAL AI OBJECT
-# =============================================================
 
 ai = AIEngine()
