@@ -18,3 +18,4 @@ requests
 gTTS
 edge-tts
 asyncio
+g4f
